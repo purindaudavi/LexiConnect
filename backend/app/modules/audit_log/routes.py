@@ -39,7 +39,7 @@ def list_audit_logs(
 
     if user_email:
         like = f"%{user_email}%"
-        query = query.filter(AuditLog.user_email.ilike(like))
+        query = query.join(User, User.id == AuditLog.actor_user_id).filter(User.email.ilike(like))
 
     if date_from:
         query = query.filter(AuditLog.created_at >= date_from)
@@ -54,9 +54,16 @@ def list_audit_logs(
         .limit(page_size)
         .all()
     )
-    return {
-        "items": logs,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    items = [
+        {
+            "id": l.id,
+            "actor_user_id": l.actor_user_id,
+            "user_id": l.user_id,
+            "action": l.action,
+            "description": l.description,
+            "meta": l.meta,
+            "created_at": l.created_at,
+        }
+        for l in logs
+    ]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}

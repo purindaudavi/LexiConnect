@@ -7,8 +7,8 @@ class AuditLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    actor_user_id: Optional[int] = None
     user_id: Optional[int] = None
-    user_email: Optional[str] = None
     action: str
     description: str
     meta: Optional[Any] = None

@@ -14,8 +14,8 @@ def log_event(
     meta: Optional[Any] = None,
 ) -> AuditLog:
     entry = AuditLog(
+        actor_user_id=getattr(user, "id", None),
         user_id=getattr(user, "id", None),
-        user_email=getattr(user, "email", None),
         action=action,
         description=description,
         meta=meta,
