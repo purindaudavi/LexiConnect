@@ -52,7 +52,14 @@ export default function ClientCasesPage() {
     setSpecializationsError("");
     try {
       const data = await getSpecializations();
-      setSpecializations(Array.isArray(data) ? data : []);
+      const list =
+  Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+    ? data.items
+    : [];
+
+setSpecializations(list);
     } catch (err) {
       const message =
         err?.response?.data?.detail ||
