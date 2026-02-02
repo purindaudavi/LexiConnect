@@ -1,4 +1,19 @@
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { fetchMyApprenticeCases } from "../api/apprenticeshipApi";
+
+const normalizeCase = (c) => {
+  const caseId = c.case_id ?? c.id ?? c.caseId;
+  return {
+    caseId,
+    title: c.title ?? c.subject ?? c.case_title ?? `Case #${caseId}`,
+    category: c.category ?? c.case_category ?? "—",
+    district: c.district ?? c.case_district ?? "—",
+    supervisingLawyer: c.supervising_lawyer ?? c.lawyer_name ?? c.lawyer ?? "—",
+    status: (c.status ?? "active").toLowerCase(),
+    assignedDate: c.assigned_date ?? c.assignedAt ?? c.created_at ?? "—",
+  };
+};
 
 export default function ApprenticeAssignedCases() {
   const navigate = useNavigate();

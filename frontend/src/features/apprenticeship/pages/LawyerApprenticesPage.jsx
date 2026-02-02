@@ -90,6 +90,13 @@ export default function LawyerApprenticesPage() {
     }
   };
 
+  const handleClear = () => {
+    setApprenticeId("");
+    setCaseId("");
+    setErr("");
+    setOk("");
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-8 text-white">
@@ -182,7 +189,6 @@ export default function LawyerApprenticesPage() {
               </select>
             </label>
           </div>
-        )}
 
           {ok && (
             <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
@@ -208,28 +214,15 @@ export default function LawyerApprenticesPage() {
             </button>
 
             <button
-              onClick={() => {
-                setApprenticeId("");
-                setCaseId("");
-                setErr("");
-                setOk("");
-              }}
-              className="rounded-lg bg-slate-800 border border-slate-700 px-6 py-3 font-semibold text-white hover:bg-slate-700"
+              onClick={handleClear}
+              className="rounded-lg bg-slate-800 border border-slate-700 px-6 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
               disabled={assignLoading}
             >
               Clear
             </button>
           </div>
-        )}
-
-        <button
-          onClick={handleAssign}
-          disabled={loading || !apprenticeId || !caseId}
-          className="mt-5 rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
-        >
-          {loading ? "Assigning..." : "Assign Apprentice"}
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Notes -> only Chat View */}
       {tab === "notes" && (
@@ -238,7 +231,8 @@ export default function LawyerApprenticesPage() {
             <div>
               <h2 className="text-xl font-semibold">Apprenticeship Chat</h2>
               <p className="text-slate-300 text-sm mt-1">
-                Open the full chat view to read and reply to notes & review submissions.
+                Open the full chat view to read and reply to notes & review
+                submissions.
               </p>
             </div>
 

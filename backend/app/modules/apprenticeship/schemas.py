@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
-
+from typing import Optional  # ✅ add this
 
 class AssignApprenticeRequest(BaseModel):
     case_id: int

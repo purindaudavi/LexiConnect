@@ -22,9 +22,10 @@ export const getBookingDocuments = async (bookingId) => {
 export const listDocuments = (bookingId) => getBookingDocuments(bookingId);
 
 // LIST case docs
-export const listCaseDocuments = (caseId) => {
+export const listCaseDocuments = async (caseId) => {
   const id = Number(caseId);
-  return api.get(`/api/documents/by-case/${id}`);
+  const res = await api.get(`/api/documents/by-case/${id}`);
+  return res.data;
 };
 
 // UPLOAD booking doc
@@ -54,6 +55,30 @@ export const uploadDocument = ({ bookingId, fileName, file }) => {
   return api.post("/api/documents", fd, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+};
+
+// UPLOAD case doc
+export const uploadCaseDocument = async ({ caseId, fileName, file }) => {
+  const id = Number(caseId);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error("Invalid caseId for uploadCaseDocument()");
+  }
+  if (!file) {
+    throw new Error("No file selected");
+  }
+
+  const safeTitle = (fileName || file?.name || "Untitled").trim();
+
+  const fd = new FormData();
+  fd.append("file_name", safeTitle);
+  fd.append("title", safeTitle);
+  fd.append("file", file);
+
+  const res = await api.post(`/api/documents/by-case/${id}`, fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
 };
 
 // DELETE

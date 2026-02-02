@@ -53,6 +53,9 @@ import LawyerEditProfilePage from "../features/lawyer_profile/pages/LawyerEditPr
 import LawyerPublicProfilePage from "../features/lawyer_profile/pages/LawyerPublicProfilePage";
 import LawyerSettingsPage from "../features/lawyer_profile/pages/LawyerSettingsPage";
 import LawyerDashboard from "../pages/LawyerDashboard";
+import PublicCaseDetailsPage from "../features/publicFeed/pages/PublicCaseDetailsPage";
+import PublicCaseFeedPage from "../features/publicFeed/pages/PublicCaseFeedPage";
+import LawyerPublicCaseDetailsPage from "../features/lawyer/pages/LawyerPublicCaseDetailsPage";
 
 // OK Cases
 import ClientCasesPage from "../features/cases/pages/ClientCasesPage";
@@ -164,6 +167,8 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/public/cases" element={<PublicCaseFeedPage />} />
+      <Route path="/public/cases/:id" element={<PublicCaseDetailsPage />} />
 
       {/* Dashboard redirect */}
       <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -244,6 +249,7 @@ const AppRoutes = () => {
         <Route path="/lawyer/cases/feed" element={<LawyerCaseFeedPage />} />
         <Route path="/lawyer/cases/requests" element={<LawyerMyRequestsPage />} />
         <Route path="/lawyer/cases/:caseId" element={<LawyerCaseDetailPage />} />
+        <Route path="/lawyer/public/cases/:id" element={<LawyerPublicCaseDetailsPage />} />
         <Route path="/lawyer/profile/edit" element={<LawyerEditProfilePage />} />
         <Route path="/lawyer/public-profile" element={<LawyerPublicProfilePage />} />
         <Route path="/lawyer/settings" element={<LawyerSettingsPage />} />
