@@ -16,19 +16,19 @@ const availabilityService = {
     }
   },
 
-  async listAvailability(lawyerId) {
-    // Backend requires lawyer_id as query parameter
-    const response = await api.get(`/api/lawyer-availability/weekly?lawyer_id=${lawyerId}`);
+  async listAvailability(lawyerUserId) {
+    // Backend prefers lawyer_user_id as query parameter
+    const response = await api.get(`/api/lawyer-availability/weekly?lawyer_user_id=${lawyerUserId}`);
     return response.data;
   },
 
-  async createAvailability(payload, lawyerId) {
-    // Backend requires lawyer_id as query parameter
-    if (!lawyerId) {
+  async createAvailability(payload, lawyerUserId) {
+    // Backend prefers lawyer_user_id as query parameter
+    if (!lawyerUserId) {
       throw new Error('Lawyer ID is required for creating availability');
     }
     
-    const url = `/api/lawyer-availability/weekly?lawyer_id=${lawyerId}`;
+    const url = `/api/lawyer-availability/weekly?lawyer_user_id=${lawyerUserId}`;
     console.log('🔍 CREATE AVAILABILITY URL:', url);
     console.log('🔍 CREATE AVAILABILITY PAYLOAD:', payload);
     
@@ -44,20 +44,20 @@ const availabilityService = {
   // Helper to get current lawyer ID
   async getCurrentLawyerId() {
     try {
-      console.log('🔍 FETCHING CURRENT LAWYER ID FROM /lawyers/me...');
-      const me = await api.get('/lawyers/me');
-      console.log('🔍 /lawyers/me RESPONSE:', me.data);
-      console.log('🔍 /lawyers/me DATA KEYS:', Object.keys(me.data || {}));
+      console.log('🔍 FETCHING CURRENT USER ID FROM /users/me...');
+      const me = await api.get('/users/me');
+      console.log('🔍 /users/me RESPONSE:', me.data);
+      console.log('🔍 /users/me DATA KEYS:', Object.keys(me.data || {}));
       
-      const lawyerId = me.data?.id;
-      console.log('🔍 EXTRACTED LAWYER ID:', lawyerId);
+      const userId = me.data?.id;
+      console.log('🔍 EXTRACTED USER ID:', userId);
       
-      if (!lawyerId) {
-        console.error('❌ NO LAWYER ID FOUND IN /lawyers/me RESPONSE');
+      if (!userId) {
+        console.error('❌ NO USER ID FOUND IN /users/me RESPONSE');
         throw new Error('No lawyer ID found in user profile');
       }
       
-      return lawyerId;
+      return userId;
     } catch (error) {
       console.error('❌ FAILED TO GET CURRENT LAWYER ID:', error);
       console.log('🔍 TRYING FALLBACK TO LOCALSTORAGE...');
@@ -164,3 +164,5 @@ const availabilityService = {
 };
 
 export default availabilityService;
+
+

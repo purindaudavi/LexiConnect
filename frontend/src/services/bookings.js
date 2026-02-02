@@ -61,8 +61,9 @@ export const cancelBooking = async (id) => {
  * Lawyer only endpoint
  * @returns {Promise<Array>} Array of pending booking objects
  */
-export const lawyerListIncomingBookings = async () => {
-  const { data } = await api.get("/api/bookings/lawyer/incoming");
+export const lawyerListIncomingBookings = async (status) => {
+  const params = status ? { status } : undefined;
+  const { data } = await api.get("/api/bookings/lawyer/incoming", { params });
   return data;
 };
 
@@ -93,8 +94,9 @@ export const lawyerRejectBooking = async (bookingId) => {
  * Lawyer only endpoint
  * @returns {Promise<Array>} Array of pending booking objects
  */
-export const getLawyerIncomingBookings = async () => {
-  const { data } = await api.get("/api/bookings/lawyer/incoming");
+export const getLawyerIncomingBookings = async (status) => {
+  const params = status ? { status } : undefined;
+  const { data } = await api.get("/api/bookings/lawyer/incoming", { params });
   return data;
 };
 
@@ -121,7 +123,7 @@ export const rejectBooking = async (id) => {
 };
 
 /**
- * Public: list active service packages for a lawyer
+ * Public: list active service packages for a lawyer (users.id)
  * @param {number} lawyerId
  * @returns {Promise<Array>}
  */
@@ -131,7 +133,7 @@ export const getLawyerServicePackages = async (lawyerId) => {
 };
 
 /**
- * Map a user_id (users table) to a lawyers.id row.
+ * Map a user_id (users table) to a lawyer profile (returns users.id).
  * @param {number} userId
  * @returns {Promise<number>} lawyer_id
  */

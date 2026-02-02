@@ -17,6 +17,7 @@ function ServicePackages() {
   const [form, setForm] = useState({
     name: "",
     description: "",
+    price: "",
     duration: "",
     active: true,
   });
@@ -52,6 +53,7 @@ function ServicePackages() {
     setForm({
       name: "",
       description: "",
+      price: "",
       duration: "",
       active: true,
     });
@@ -64,6 +66,7 @@ function ServicePackages() {
     const payload = {
       name: form.name,
       description: form.description,
+      price: Number(form.price),
       duration: Number(form.duration),
       active: Boolean(form.active),
     };
@@ -81,7 +84,11 @@ function ServicePackages() {
       await loadPackages();
     } catch (err) {
       console.error(err);
-      setError("Failed to save service package. Check Swagger token + backend logs.");
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to save service package.";
+      setError(message);
     }
   };
 
@@ -90,6 +97,7 @@ function ServicePackages() {
     setForm({
       name: pkg.name || "",
       description: pkg.description || "",
+      price: pkg.price?.toString?.() ?? "",
       duration: pkg.duration?.toString?.() ?? "",
       active: !!pkg.active,
     });
@@ -158,6 +166,24 @@ function ServicePackages() {
                 onChange={handleChange}
                 placeholder="Brief description of the service"
                 className="lc-input"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="price" className="form-label">
+                Price (LKR) <span className="required-star">*</span>
+              </label>
+              <input
+                type="number"
+                id="price"
+                name="price"
+                value={form.price}
+                onChange={handleChange}
+                placeholder="e.g., 1500"
+                className="lc-input"
+                min="0"
+                step="0.01"
                 required
               />
             </div>

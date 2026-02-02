@@ -2,12 +2,12 @@
 
 import os
 from uuid import uuid4
-from typing import Optional
-
+from typing import Optional, List
 from fastapi import UploadFile
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import ProgrammingError
+from .models import DocumentReviewLink
 from .models import Document, DocumentComment
 
 UPLOAD_DIR = "uploads/documents"
@@ -194,3 +194,49 @@ def get_document_comment_meta(db: Session, doc_ids: list[int]):
             latest[row.document_id] = row
 
     return counts, latest
+
+
+def get_document_review_links(db: Session, document_id: int) -> List[DocumentReviewLink]:
+    return (
+        db.query(DocumentReviewLink)
+        .filter(DocumentReviewLink.document_id == document_id)
+        .order_by(DocumentReviewLink.updated_at.desc())
+        .all()
+    )
+
+
+def get_document_review_link_for_apprentice(db: Session, document_id: int, apprentice_id: int) -> Optional[DocumentReviewLink]:
+    return (
+        db.query(DocumentReviewLink)
+        .filter(
+            DocumentReviewLink.document_id == document_id,
+            DocumentReviewLink.apprentice_id == apprentice_id,
+        )
+        .first()
+    )
+
+
+def upsert_document_review_link(
+    db: Session,
+    document_id: int,
+    apprentice_id: int,
+    review_link: str,
+    note: Optional[str] = None,
+) -> DocumentReviewLink:
+    row = get_document_review_link_for_apprentice(db, document_id, apprentice_id)
+
+    if row:
+        row.review_link = review_link
+        row.note = note
+    else:
+        row = DocumentReviewLink(
+            document_id=document_id,
+            apprentice_id=apprentice_id,
+            review_link=review_link,
+            note=note,
+        )
+        db.add(row)
+
+    db.commit()
+    db.refresh(row)
+    return row

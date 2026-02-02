@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -13,3 +13,10 @@ class AuditLogOut(BaseModel):
     description: str
     meta: Optional[Any] = None
     created_at: datetime
+
+
+class AuditLogListOut(BaseModel):
+    items: List[AuditLogOut]
+    total: int
+    page: int
+    page_size: int

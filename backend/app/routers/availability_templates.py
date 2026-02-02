@@ -6,8 +6,9 @@ from datetime import time
 
 from ..database import get_db
 from ..models.availability_template import AvailabilityTemplate
-from ..models.lawyer import Lawyer
+from ..models.user import User, UserRole
 from ..models.branch import Branch
+from app.modules.availability.service import resolve_lawyer_user_id
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/lawyer-availability", tags=["Lawyer Availability"])
@@ -25,6 +26,7 @@ class AvailabilityTemplateCreate(AvailabilityTemplateBase):
 class AvailabilityTemplateResponse(AvailabilityTemplateBase):
     id: str
     lawyer_id: int
+    lawyer_user_id: int
     is_active: bool
     created_at: str
 
@@ -88,12 +90,33 @@ def get_branches(db: Session = Depends(get_db)):
     return branches
 
 @router.get("/lawyer/{lawyer_id}")
-def get_lawyer_availability(lawyer_id: int, db: Session = Depends(get_db)):
+def _resolve_target_user_id(db: Session, *, lawyer_user_id: Optional[int], lawyer_id: Optional[int]) -> Optional[int]:
+    if lawyer_user_id is not None:
+        return lawyer_user_id
+    if lawyer_id is None:
+        return None
+    user = db.query(User).filter(User.id == lawyer_id, User.role == UserRole.lawyer).first()
+    if user:
+        return user.id
+    return resolve_lawyer_user_id(db, lawyer_id)
+
+
+def get_lawyer_availability(
+    lawyer_id: int,
+    lawyer_user_id: Optional[int] = Query(None, description="Preferred users.id (optional)"),
+    db: Session = Depends(get_db),
+):
     """Get all availability for a lawyer"""
-    
-    # Verify lawyer exists
-    lawyer = db.query(Lawyer).filter(Lawyer.id == lawyer_id).first()
-    if not lawyer:
+
+    target_id = _resolve_target_user_id(db, lawyer_user_id=lawyer_user_id, lawyer_id=lawyer_id)
+    if target_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lawyer not found"
+        )
+
+    lawyer_user = db.query(User).filter(User.id == target_id, User.role == UserRole.lawyer).first()
+    if not lawyer_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lawyer not found"
@@ -101,7 +124,7 @@ def get_lawyer_availability(lawyer_id: int, db: Session = Depends(get_db)):
     
     # Get availability templates
     templates = db.query(AvailabilityTemplate).filter(
-        AvailabilityTemplate.lawyer_id == lawyer_id,
+        AvailabilityTemplate.lawyer_id == target_id,
         AvailabilityTemplate.is_active == True
     ).all()
     
@@ -129,13 +152,20 @@ def get_lawyer_availability(lawyer_id: int, db: Session = Depends(get_db)):
 def create_weekly_availability(
     slot_data: AvailabilityTemplateCreate,
     lawyer_id: int = Query(..., description="Lawyer ID"),
+    lawyer_user_id: Optional[int] = Query(None, description="Preferred users.id (optional)"),
     db: Session = Depends(get_db)
 ):
     """Create a new weekly availability template"""
-    
-    # Verify lawyer exists
-    lawyer = db.query(Lawyer).filter(Lawyer.id == lawyer_id).first()
-    if not lawyer:
+
+    target_id = _resolve_target_user_id(db, lawyer_user_id=lawyer_user_id, lawyer_id=lawyer_id)
+    if target_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lawyer not found"
+        )
+
+    lawyer_user = db.query(User).filter(User.id == target_id, User.role == UserRole.lawyer).first()
+    if not lawyer_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lawyer not found"
@@ -155,7 +185,7 @@ def create_weekly_availability(
     
     # Create template
     template = AvailabilityTemplate(
-        lawyer_id=lawyer_id,
+        lawyer_id=target_id,
         day_of_week=day_int,
         start_time=start_time,
         end_time=end_time,
@@ -169,6 +199,7 @@ def create_weekly_availability(
     return {
         "id": str(template.id),
         "lawyer_id": template.lawyer_id,
+        "lawyer_user_id": template.lawyer_id,
         "day_of_week": template.day_of_week,
         "start_time": format_time_to_string(template.start_time),
         "end_time": format_time_to_string(template.end_time),
@@ -225,6 +256,7 @@ def update_weekly_availability(
     return {
         "id": str(template.id),
         "lawyer_id": template.lawyer_id,
+        "lawyer_user_id": template.lawyer_id,
         "day_of_week": template.day_of_week,
         "start_time": format_time_to_string(template.start_time),
         "end_time": format_time_to_string(template.end_time),

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import './availability-ui.css';
 import WeeksStepper from '../components/WeeksStepper';
@@ -37,6 +38,7 @@ const TimeField = ({ label, value, onChange, error }) => (
 );
 
 const AvailabilityEditor = () => {
+  const navigate = useNavigate();
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardData, setWizardData] = useState({
     days: [],
@@ -73,6 +75,7 @@ const AvailabilityEditor = () => {
   const [saveMessage, setSaveMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingBranches, setLoadingBranches] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [availabilities, setAvailabilities] = useState([]);
   const [blackouts, setBlackouts] = useState([]);
   const [loadingAvailabilities, setLoadingAvailabilities] = useState(false);
@@ -138,12 +141,23 @@ const AvailabilityEditor = () => {
   };
 
   useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      const authConfig = withAuthConfig();
+      if (!authConfig) return;
+      try {
+        const { data } = await api.get('/users/me', authConfig);
+        setCurrentUserId(data?.id ?? null);
+      } catch (_) {
+        setCurrentUserId(null);
+      }
+    };
+
     const fetchBranches = async () => {
       try {
         setLoadingBranches(true);
-        const url = '/api/branches';
+        const url = '/api/branches/me';
         console.log('[availability] fetching branches from', url, 'base', api.defaults.baseURL);
-        const { data } = await api.get('/api/branches');
+        const { data } = await api.get(url);
         setBranches(data || []);
       } catch (err) {
         const detail =
@@ -158,9 +172,15 @@ const AvailabilityEditor = () => {
     };
     
 
+    fetchCurrentUserId();
     fetchBranches();
     loadAvailabilityData();
   }, []);
+
+  useEffect(() => {
+    if (currentUserId === null) return;
+    loadAvailabilityData();
+  }, [currentUserId]);
 
   const loadAvailabilities = async () => {
     const authConfig = withAuthConfig({}, (msg) => setErrors((prev) => ({ ...prev, list: msg })));
@@ -170,7 +190,13 @@ const AvailabilityEditor = () => {
     }
     try {
       setLoadingAvailabilities(true);
-      const { data } = await api.get('/api/lawyer-availability/weekly', authConfig);
+      const { data } = await api.get('/api/lawyer-availability/weekly', {
+        ...authConfig,
+        params: {
+          ...(authConfig.params || {}),
+          ...(currentUserId ? { lawyer_user_id: currentUserId } : {}),
+        },
+      });
       console.log('[availability] fetched list', data?.length, data);
       const deduped = [];
       const seen = new Set();
@@ -205,7 +231,13 @@ const AvailabilityEditor = () => {
       return;
     }
     try {
-      const { data } = await api.get('/api/lawyer-availability/blackouts', authConfig);
+      const { data } = await api.get('/api/lawyer-availability/blackouts', {
+        ...authConfig,
+        params: {
+          ...(authConfig.params || {}),
+          ...(currentUserId ? { lawyer_user_id: currentUserId } : {}),
+        },
+      });
       setBlackouts(data || []);
     } catch (err) {
       if (handleAuthFailure(err, (msg) => setErrors((prev) => ({ ...prev, list: msg })))) return;
@@ -292,7 +324,13 @@ const AvailabilityEditor = () => {
     try {
       setSaving(true);
       for (const body of payloads) {
-        const res = await api.post('/api/lawyer-availability/weekly', body, authConfig);
+        const res = await api.post('/api/lawyer-availability/weekly', body, {
+          ...authConfig,
+          params: {
+            ...(authConfig.params || {}),
+            ...(currentUserId ? { lawyer_user_id: currentUserId } : {}),
+          },
+        });
         console.log('[availability] save success', res.status, res.data);
       }
       setSaveMessage('Availability saved successfully.');
@@ -348,14 +386,16 @@ const AvailabilityEditor = () => {
       date: dateToCancel,
       reason: 'Cancelled via dashboard',
     };
-    if (slot.id != null) payload.slot_id = slot.id;
-    if (slot.start_time) payload.start_time = slot.start_time;
-    if (slot.end_time) payload.end_time = slot.end_time;
-    if (slot.branch_id != null) payload.branch_id = slot.branch_id;
 
     try {
       setCancelingSlotId(slot.id ?? key);
-      await api.post('/api/lawyer-availability/blackouts', payload, authConfig);
+      await api.post('/api/lawyer-availability/blackouts', payload, {
+        ...authConfig,
+        params: {
+          ...(authConfig.params || {}),
+          ...(currentUserId ? { lawyer_user_id: currentUserId } : {}),
+        },
+      });
       setCancelMessage(`Availability on ${dateToCancel} ${startLabel}–${endLabel} cancelled.`);
       setCancelledSlotKeys((prev) => {
         const next = new Set(prev);
@@ -367,6 +407,13 @@ const AvailabilityEditor = () => {
     } catch (err) {
       if (handleAuthFailure(err, (msg) => setCancelError(msg))) return;
       if (err?.response?.status === 400) {
+        // Slot already cancelled - remove it from display
+        setCancelledSlotKeys((prev) => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+        setSelectedSlot(null);
         setCancelMessage('This slot is already cancelled.');
         return;
       }
@@ -446,7 +493,9 @@ const AvailabilityEditor = () => {
                 onClick={() => setWizardData((p) => ({ ...p, branchId: branch.id != null ? Number(branch.id) : null }))}
               >
                 <span className="location-name">{branch.name}</span>
-                {branch.address && <span className="location-desc">{branch.address}</span>}
+                <span className="location-desc">
+                  {[branch.address, branch.city, branch.district].filter(Boolean).join(', ') || '—'}
+                </span>
               </button>
             ))}
             {loadingBranches && (
@@ -454,10 +503,14 @@ const AvailabilityEditor = () => {
             )}
             {!loadingBranches && branches.length === 0 && (
               <div className="location-empty">
-                No branches found. Create one first (e.g., via POST /api/branches or run seed_branches.py).
+                No branches yet. Create a branch to set availability.
                 <div className="location-actions">
-                  <button className="ghost-btn small" type="button" onClick={() => window.location.reload()}>
-                    Refresh
+                  <button
+                    className="cta-btn small"
+                    type="button"
+                    onClick={() => navigate('/lawyer/branches')}
+                  >
+                    Create Branch
                   </button>
                 </div>
               </div>
@@ -645,13 +698,16 @@ const AvailabilityEditor = () => {
       const current = new Date(Date.UTC(viewDate.getUTCFullYear(), viewDate.getUTCMonth(), d));
       const weekday = current.getUTCDay(); // 0 sun
       const dateKey = current.toISOString().slice(0, 10);
+      // Skip past dates - only show from today onwards
+      if (dateKey < todayISO) continue;
       if (blackoutDates.has(dateKey)) continue;
       const matches = (availabilities || []).filter((slot) => {
-        const idx = dayToIndex(slot.day_of_week || slot.day || '');
-        if (idx === null) return false;
-        // dayToIndex uses Mon=0; translate to Sunday=0 for getUTCDay
-        const sundayIdx = (idx + 1) % 7;
-        return sundayIdx === weekday;
+        const dayName = (slot.day_of_week || slot.day || '').toLowerCase();
+        // Direct mapping to JS weekday (0=Sun, 6=Sat)
+        const dayMap = { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, friday: 5, fri: 5, saturday: 6, sat: 6 };
+        const expectedWeekday = dayMap[dayName];
+        if (expectedWeekday === undefined) return false;
+        return expectedWeekday === weekday;
       });
       if (matches.length) {
         occurrences[dateKey] = matches.map((m) => ({
@@ -663,20 +719,16 @@ const AvailabilityEditor = () => {
       }
     }
     return occurrences;
-  }, [availabilities, viewDate, blackoutDates]);
+  }, [availabilities, viewDate, blackoutDates, cancelledSlotKeys, todayISO]);
 
   const filteredMonthlyOccurrences = useMemo(() => {
-    if (wizardData.repeatMode === 'until') {
-      if (!untilDate) return {};
-      return Object.fromEntries(
-        Object.entries(monthlyOccurrences).filter(([dateKey]) => dateKey <= untilDate)
-      );
-    }
-    // repeatMode weeks: filter to range based on selected weeks count
+    // Always filter from today to the limit date
+    const limitDate = wizardData.repeatMode === 'until' && untilDate ? untilDate : weeksLimitISO;
+    if (wizardData.repeatMode === 'until' && !untilDate) return {};
     return Object.fromEntries(
-      Object.entries(monthlyOccurrences).filter(([dateKey]) => dateKey <= weeksLimitISO)
+      Object.entries(monthlyOccurrences).filter(([dateKey]) => dateKey >= todayISO && dateKey <= limitDate)
     );
-  }, [monthlyOccurrences, wizardData.repeatMode, untilDate, weeksLimitISO]);
+  }, [monthlyOccurrences, wizardData.repeatMode, untilDate, weeksLimitISO, todayISO]);
 
   const getSlotsForDate = (date) => (date ? filteredMonthlyOccurrences[date] || [] : []);
 
@@ -809,11 +861,15 @@ const AvailabilityEditor = () => {
                 <button
                   className="ghost-btn small"
                   type="button"
-                  onClick={() =>
-                    setViewDate(
-                      (prev) => new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() - 1, 1))
-                    )
-                  }
+                  disabled={viewDate.getUTCFullYear() === 2026 && viewDate.getUTCMonth() === 0}
+                  onClick={() => {
+                    setViewDate((prev) => {
+                      const newDate = new Date(Date.UTC(prev.getUTCFullYear(), prev.getUTCMonth() - 1, 1));
+                      // Don't go before January 2026
+                      if (newDate.getUTCFullYear() < 2026) return prev;
+                      return newDate;
+                    });
+                  }}
                 >
                   ←
                 </button>

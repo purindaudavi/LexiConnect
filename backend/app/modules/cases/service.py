@@ -5,13 +5,22 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
 from app.modules.cases.models import Case, CaseRequest
+from app.models.specialization import Specialization
 
 
 def create_case(db: Session, client: User, data) -> Case:
+    specialization = (
+        db.query(Specialization)
+        .filter(Specialization.id == data.specialization_id)
+        .first()
+    )
+    if not specialization:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Specialization not found")
     case = Case(
         client_id=client.id,
         title=data.title,
-        category=data.category,
+        category=specialization.name,
+        specialization_id=specialization.id,
         district=data.district,
         summary_public=data.summary_public,
         summary_private=data.summary_private,

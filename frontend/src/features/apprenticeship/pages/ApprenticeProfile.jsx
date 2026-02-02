@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   fetchMyApprenticeCases,
   fetchApprenticeCaseNotes,
@@ -109,18 +110,36 @@ export default function ApprenticeProfile() {
     }).length;
   }, [cases]);
 
+  const statusPieData = useMemo(() => {
+    const active = activeCases;
+    const closed = Math.max(0, cases.length - active);
+    return [
+      { name: "Active", value: active },
+      { name: "Closed", value: closed },
+    ];
+  }, [activeCases, cases.length]);
+
+  const PIE_COLORS = ["#f59e0b", "#64748b"];
+
+  const CARD_BASE =
+    "bg-slate-900/50 border border-slate-700/60 rounded-2xl p-6 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]";
+  const CARD_INSET =
+    "bg-slate-950/40 border border-slate-800/60 rounded-xl p-5";
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-4xl font-bold text-white mb-2">Profile</h1>
+        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+          Profile
+        </h1>
         <p className="text-slate-300">Manage your apprentice account</p>
       </div>
 
       {/* Main Profile Card */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
-        <div className="flex items-center gap-6">
-          <div className="w-20 h-20 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+      <div className={CARD_BASE}>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <div className="w-20 h-20 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shadow-[0_0_0_1px_rgba(245,158,11,0.12)]">
             <span className="text-4xl">👤</span>
           </div>
 
@@ -146,7 +165,7 @@ export default function ApprenticeProfile() {
       </div>
 
       {/* Account Information */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <h2 className="text-xl font-semibold text-white mb-4">Account Information</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -175,18 +194,25 @@ export default function ApprenticeProfile() {
       </div>
 
       {/* Supervising Lawyers */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <h2 className="text-xl font-semibold text-white mb-4">Supervising Lawyers</h2>
 
         {loading ? (
-          <div className="text-slate-300">Loading...</div>
+          <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 py-6 text-center text-slate-300">
+            Loading...
+          </div>
         ) : lawyers.length === 0 ? (
-          <div className="text-slate-400">—</div>
+          <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 py-6 text-center text-slate-300">
+            No supervising lawyers found yet.
+          </div>
         ) : (
           <div className="flex flex-wrap gap-4">
             {lawyers.map((l) => (
-              <div key={l.id} className="flex items-center gap-3 p-4 bg-slate-950/30 border border-slate-700/60 rounded-lg">
-                <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+              <div
+                key={l.id}
+                className="flex items-center gap-3 p-4 bg-slate-950/40 border border-slate-700/60 rounded-xl shadow-[0_0_0_1px_rgba(15,23,42,0.3)]"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
                   <span className="text-xl">👨‍⚖️</span>
                 </div>
                 <div className="text-white font-medium">{l.full_name}</div>
@@ -197,32 +223,91 @@ export default function ApprenticeProfile() {
       </div>
 
       {/* Performance Overview */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <h2 className="text-xl font-semibold text-white mb-4">Performance Overview</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-950/30 border border-slate-700/60 rounded-lg p-5 text-center">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className={`${CARD_INSET} text-center`}>
             <div className="text-amber-300 text-3xl mb-2">⚖️</div>
             <div className="text-3xl font-bold text-white mb-1">{loading ? "—" : cases.length}</div>
             <div className="text-slate-400 text-sm">Total Cases Handled</div>
           </div>
 
-          <div className="bg-slate-950/30 border border-slate-700/60 rounded-lg p-5 text-center">
-            <div className="text-blue-400 text-3xl mb-2">⚖️</div>
+          <div className={`${CARD_INSET} text-center`}>
+            <div className="text-amber-300 text-3xl mb-2">🟠</div>
             <div className="text-3xl font-bold text-white mb-1">{loading ? "—" : activeCases}</div>
             <div className="text-slate-400 text-sm">Active Cases</div>
           </div>
 
-          <div className="bg-slate-950/30 border border-slate-700/60 rounded-lg p-5 text-center">
-            <div className="text-purple-400 text-3xl mb-2">📝</div>
+          <div className={`${CARD_INSET} text-center`}>
+            <div className="text-amber-300 text-3xl mb-2">📝</div>
             <div className="text-3xl font-bold text-white mb-1">{loading ? "—" : notesCount}</div>
             <div className="text-slate-400 text-sm">Notes Contributed</div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className={`${CARD_INSET}`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-white font-semibold">Case Mix</div>
+              <div className="text-slate-400 text-xs">Active vs Closed</div>
+            </div>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#020617",
+                      border: "1px solid #334155",
+                      color: "#e5e7eb",
+                    }}
+                  />
+                  <Pie
+                    data={statusPieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={45}
+                    outerRadius={70}
+                    paddingAngle={3}
+                  >
+                    {statusPieData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className={`${CARD_INSET}`}>
+            <div className="text-white font-semibold mb-2">Working Style</div>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="flex items-center justify-between">
+                <span>Active case ratio</span>
+                <span className="text-amber-200">
+                  {cases.length ? Math.round((activeCases / cases.length) * 100) : 0}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Notes per case</span>
+                <span className="text-amber-200">
+                  {cases.length ? Math.round((notesCount / cases.length) * 10) / 10 : 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Supervising lawyers</span>
+                <span className="text-amber-200">{lawyers.length}</span>
+              </div>
+            </div>
+            <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              Keep notes concise and link evidence for faster reviews.
+            </div>
           </div>
         </div>
       </div>
 
       {/* Apprentice Role */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <div className="flex items-center gap-2 mb-4">
           <span className="text-amber-300 text-2xl">👤</span>
           <h2 className="text-xl font-semibold text-white">Apprentice Role</h2>

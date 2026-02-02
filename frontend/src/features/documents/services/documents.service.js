@@ -1,13 +1,33 @@
 // frontend/src/features/documents/services/documents.service.js
 import api from "../../../services/api";
 
-// LIST (booking_id is required by backend)
-export const listDocuments = (bookingId) => {
+/**
+ * IMPORTANT:
+ * Your .env keeps VITE_API_BASE_URL as ORIGIN (http://127.0.0.1:8000)
+ * and you want to keep api.js unchanged.
+ *
+ * Therefore, EVERY backend API endpoint must be called with "/api/..."
+ * because baseURL does NOT contain "/api".
+ */
+
+// LIST booking docs (booking_id is required by backend)
+export const getBookingDocuments = async (bookingId) => {
   const id = Number(bookingId);
-  return api.get("/api/documents", { params: { booking_id: id } });
+  const url = `/api/bookings/${id}/documents`;
+
+  const res = await api.get(url);
+  return res;
 };
 
-// UPLOAD (multipart/form-data)
+export const listDocuments = (bookingId) => getBookingDocuments(bookingId);
+
+// LIST case docs
+export const listCaseDocuments = (caseId) => {
+  const id = Number(caseId);
+  return api.get(`/api/documents/by-case/${id}`);
+};
+
+// UPLOAD booking doc
 export const uploadDocument = ({ bookingId, fileName, file }) => {
   const id = Number(bookingId);
 

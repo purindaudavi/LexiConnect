@@ -8,6 +8,8 @@ from .schemas import (
     CaseApprenticeOut,
     ApprenticeNoteCreate,
     ApprenticeNoteOut,
+    ApprenticeChoiceOut,
+    CaseChoiceOut,
 )
 
 # ✅ Correct imports for YOUR repo:
@@ -41,6 +43,7 @@ def add_case_note(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    # NOW supports lawyer OR apprentice depending on role + assignment
     return service.add_note(db, user, case_id, payload.note)
 
 
@@ -50,4 +53,21 @@ def get_case_notes(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    # returns notes for apprentice (if assigned) OR lawyer (if assigned by that lawyer)
     return service.get_case_notes_for_lawyer(db, user, case_id)
+
+
+@router.get("/choices/apprentices", response_model=List[ApprenticeChoiceOut])
+def apprenticeship_apprentice_choices(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    return service.list_apprentices(db, user)
+
+
+@router.get("/choices/cases", response_model=List[CaseChoiceOut])
+def apprenticeship_case_choices(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    return service.list_my_cases_for_apprenticeship(db, user)

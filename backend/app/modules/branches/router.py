@@ -22,10 +22,15 @@ router = APIRouter(prefix="/api/branches", tags=["Branches"])
 def list_active_branches(
     lawyer_id: int | None = Query(None, description="Optional filter by lawyer"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = db.query(Branch).filter(Branch.is_active.is_(True))
     if lawyer_id is not None:
-        query = query.filter(Branch.lawyer_id == lawyer_id)
+        query = query.filter(Branch.user_id == lawyer_id)
+    else:
+        if current_user.role != "lawyer":
+            raise HTTPException(status_code=403, detail="Only lawyers can view branches")
+        query = query.filter(Branch.user_id == current_user.id)
     rows = query.order_by(Branch.id.asc()).all()
     print(f"[branches] GET /api/branches -> {len(rows)} rows")
     return rows
@@ -40,8 +45,7 @@ def create_branch(
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can create branches")
 
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
-    return service.create_branch(db, lawyer, payload)
+    return service.create_branch(db, current_user.id, payload)
 
 
 @router.get("/me", response_model=List[BranchResponse])
@@ -52,8 +56,7 @@ def get_my_branches(
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can view branches")
 
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
-    return service.get_my_branches(db, lawyer)
+    return service.get_my_branches(db, current_user.id)
 
 
 @router.patch("/{branch_id}", response_model=BranchResponse)
@@ -63,11 +66,9 @@ def update_branch(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
-
     branch = (
         db.query(Branch)
-        .filter(Branch.id == branch_id, Branch.lawyer_id == lawyer.id)
+        .filter(Branch.id == branch_id, Branch.user_id == current_user.id)
         .first()
     )
     if not branch:
@@ -82,11 +83,9 @@ def delete_branch(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
-
     branch = (
         db.query(Branch)
-        .filter(Branch.id == branch_id, Branch.lawyer_id == lawyer.id)
+        .filter(Branch.id == branch_id, Branch.user_id == current_user.id)
         .first()
     )
     if not branch:

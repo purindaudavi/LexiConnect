@@ -31,7 +31,7 @@ def create_checklist_template(
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can create checklist templates")
 
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     return service.create_template(db, lawyer, payload)
 
 
@@ -43,7 +43,7 @@ def get_my_checklist_templates(
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can view checklist templates")
 
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     return service.get_my_templates(db, lawyer)
 
 
@@ -54,7 +54,7 @@ def update_checklist_template(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
 
     template = (
         db.query(ChecklistTemplate)
@@ -73,7 +73,7 @@ def delete_checklist_template(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
 
     template = (
         db.query(ChecklistTemplate)

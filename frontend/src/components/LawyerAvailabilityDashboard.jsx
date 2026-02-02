@@ -50,6 +50,7 @@ const LawyerAvailabilityDashboard = () => {
 
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const [stats, setStats] = useState({ activeBlackouts: 0, dailyCapacity: 0 });
 
@@ -141,14 +142,22 @@ const LawyerAvailabilityDashboard = () => {
 
       // Try combined endpoint first
       try {
-        const { data } = await api.get("/api/lawyer-availability/me");
+        const { data } = await api.get("/api/lawyer-availability/me", {
+          params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+        });
         bundle = data || {};
       } catch (e) {
         // Fallback: load individually
         const [weeklyRes, branchesRes, blackoutRes] = await Promise.all([
-          api.get("/api/lawyer-availability/weekly"),
-          api.get("/api/lawyer-availability/branches"),
-          api.get("/api/lawyer-availability/blackout"),
+          api.get("/api/lawyer-availability/weekly", {
+            params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+          }),
+          api.get("/api/lawyer-availability/branches", {
+            params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+          }),
+          api.get("/api/lawyer-availability/blackout", {
+            params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+          }),
         ]);
 
         bundle = {
@@ -213,7 +222,11 @@ const LawyerAvailabilityDashboard = () => {
     setPreviewError("");
     try {
       const { data } = await api.get("/api/lawyer-availability/slots", {
-        params: { from_date: fromDate, to_date: toDate },
+        params: {
+          from_date: fromDate,
+          to_date: toDate,
+          ...(currentUserId ? { lawyer_user_id: currentUserId } : {}),
+        },
       });
       setSlotPreview(data || []);
     } catch (err) {
@@ -275,9 +288,13 @@ const LawyerAvailabilityDashboard = () => {
 
       let saved;
       if (slot.id && !String(slot.id).startsWith("new-")) {
-        saved = await api.patch(`/api/lawyer-availability/weekly/${slot.id}`, payload);
+        saved = await api.patch(`/api/lawyer-availability/weekly/${slot.id}`, payload, {
+          params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+        });
       } else {
-        saved = await api.post("/api/lawyer-availability/weekly", payload);
+        saved = await api.post("/api/lawyer-availability/weekly", payload, {
+          params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+        });
       }
 
       setTimeSlots((prev) => ({
@@ -364,7 +381,9 @@ const LawyerAvailabilityDashboard = () => {
         reason: newBlackout.reason || null,
       };
 
-      const { data } = await api.post("/api/lawyer-availability/blackout", payload);
+      const { data } = await api.post("/api/lawyer-availability/blackout", payload, {
+        params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+      });
 
       setBlackoutDates((prev) => [
         ...prev,
@@ -411,7 +430,9 @@ const LawyerAvailabilityDashboard = () => {
       setSaving((p) => ({ ...p, [`delete-blackout-${id}`]: true }));
       setError(null);
 
-      await api.delete(`/api/lawyer-availability/blackout/${id}`);
+      await api.delete(`/api/lawyer-availability/blackout/${id}`, {
+        params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+      });
 
       setBlackoutDates((prev) => prev.filter((b) => b.id !== id));
 
@@ -442,10 +463,16 @@ const LawyerAvailabilityDashboard = () => {
       setSaving((p) => ({ ...p, [key]: true }));
       setError(null);
 
-      await api.post("/api/lawyer-availability/blackout", {
-        date: dateStr,
-        reason: "Cancelled via calendar",
-      });
+      await api.post(
+        "/api/lawyer-availability/blackout",
+        {
+          date: dateStr,
+          reason: "Cancelled via calendar",
+        },
+        {
+          params: currentUserId ? { lawyer_user_id: currentUserId } : undefined,
+        }
+      );
 
       setSuccess("Day cancelled");
       setTimeout(() => setSuccess(null), 2500);
@@ -490,20 +517,31 @@ const LawyerAvailabilityDashboard = () => {
 
   // ---------- effects ----------
   useEffect(() => {
-    loadAvailabilityData();
+    const fetchCurrentUserId = async () => {
+      try {
+        const { data } = await api.get("/users/me");
+        setCurrentUserId(data?.id ?? null);
+      } catch (_) {
+        setCurrentUserId(null);
+      }
+    };
+
+    fetchCurrentUserId();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (currentUserId === null) return;
     const today = new Date();
     const from = today.toISOString().slice(0, 10);
     const toDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
     const to = toDate.toISOString().slice(0, 10);
     setPreviewFrom(from);
     setPreviewTo(to);
+    loadAvailabilityData();
     fetchSlotPreview(from, to);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUserId]);
 
   // ---------- icons as components ----------
   const TrashIcon = () => <Trash2 className="w-4 h-4" />;

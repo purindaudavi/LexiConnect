@@ -26,8 +26,10 @@ class BookingOut(BaseModel):
     service_package_id: Optional[int] = None
     case_id: Optional[int] = None
     scheduled_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
     note: Optional[str] = None
     status: str
+    blocks_time: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
 
@@ -72,6 +74,19 @@ class BookingCancelOut(BaseModel):
     status: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BookingSlotOut(BaseModel):
+    start: str
+    end: str
+    branch_id: int
+    branch_name: Optional[str] = None
+    duration_minutes: int
+
+
+class BookingSlotsByDateOut(BaseModel):
+    date: str
+    slots: list[BookingSlotOut]
 
 
 class BookingDraftCreate(BaseModel):

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import UserRole, User
+from app.modules.lawyer_profiles.models import LawyerProfile
+from app.models.specialization import Specialization
 from app.routers.auth import get_current_user
 from .models import Case, CaseRequest
 from .schemas import (
@@ -15,6 +17,7 @@ from .schemas import (
     CaseRequestCreate,
     CaseRequestOut,
     LawyerCaseRequestOut,
+    LawyerSummaryOut,
 )
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
@@ -60,10 +63,18 @@ def create_case(
     current_user=Depends(get_current_user),
 ):
     _ensure_client(current_user)
+    specialization = (
+        db.query(Specialization)
+        .filter(Specialization.id == payload.specialization_id)
+        .first()
+    )
+    if not specialization:
+        raise HTTPException(status_code=400, detail="Specialization not found")
     new_case = Case(
         client_id=current_user.id,
         title=payload.title,
-        category=payload.category,
+        category=specialization.name,
+        specialization_id=specialization.id,
         district=payload.district,
         summary_public=payload.summary_public,
         summary_private=payload.summary_private,
@@ -93,7 +104,7 @@ def list_my_cases(
 @router.get("/feed", response_model=List[CaseOut])
 def list_open_cases(
     district: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
+    specialization_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -101,8 +112,8 @@ def list_open_cases(
     q = db.query(Case).filter(Case.status == "open")
     if district:
         q = q.filter(Case.district.ilike(f"%{district}%"))
-    if category:
-        q = q.filter(Case.category.ilike(f"%{category}%"))
+    if specialization_id:
+        q = q.filter(Case.specialization_id == specialization_id)
     return q.order_by(Case.created_at.desc()).all()
 
 
@@ -155,12 +166,35 @@ def list_case_requests(
     case = _get_case_or_404(db, case_id)
     _ensure_client(current_user)
     _ensure_case_owner(current_user, case)
-    return (
-        db.query(CaseRequest)
+    rows = (
+        db.query(CaseRequest, User, LawyerProfile)
+        .join(User, User.id == CaseRequest.lawyer_id)
+        .outerjoin(LawyerProfile, LawyerProfile.user_id == User.id)
         .filter(CaseRequest.case_id == case_id)
         .order_by(CaseRequest.created_at.desc())
         .all()
     )
+
+    out: List[CaseRequestOut] = []
+    for req, lawyer_user, profile in rows:
+        out.append(
+            CaseRequestOut(
+                id=req.id,
+                case_id=req.case_id,
+                lawyer_id=req.lawyer_id,
+                message=req.message,
+                status=req.status,
+                created_at=req.created_at,
+                lawyer=LawyerSummaryOut(
+                    id=lawyer_user.id,
+                    full_name=lawyer_user.full_name,
+                    profile_id=getattr(profile, "id", None),
+                    district=getattr(profile, "district", None),
+                    verified=bool(profile.is_verified) if profile is not None else None,
+                ),
+            )
+        )
+    return out
 
 
 @router.patch("/{case_id}/requests/{request_id}", response_model=CaseRequestOut)
@@ -221,6 +255,8 @@ def list_my_case_requests(
                 case_title=case.title,
                 district=case.district,
                 category=case.category,
+                specialization_id=case.specialization_id,
+                specialization_name=case.specialization.name if case.specialization else None,
             )
         )
     return out

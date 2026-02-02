@@ -14,6 +14,9 @@ from app.models.lawyer import Lawyer
 from app.modules.lawyer_profiles.models import LawyerProfile
 from app.schemas.auth import Token
 from app.schemas.user import UserCreate, UserOut
+from app.schemas.user_public import UserMeOut
+from app.modules.rbac.models import Role as RoleModel, UserRole as UserRoleModel
+from app.modules.rbac.services import get_user_effective_privilege_keys
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -197,6 +200,31 @@ def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
     new_refresh = create_refresh_token(base_claims)
 
     return Token(access_token=new_access, refresh_token=new_refresh, token_type="bearer")
+
+
+@router.get("/me", response_model=UserMeOut)
+def get_me(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    role_rows = (
+        db.query(RoleModel)
+        .join(UserRoleModel, UserRoleModel.role_id == RoleModel.id)
+        .filter(UserRoleModel.user_id == current_user.id)
+        .order_by(RoleModel.name.asc())
+        .all()
+    )
+    roles = [r.name for r in role_rows]
+    privileges = sorted(get_user_effective_privilege_keys(db, current_user.id))
+    return UserMeOut(
+        id=current_user.id,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        roles=roles,
+        effective_privileges=privileges,
+        created_at=current_user.created_at,
+    )
 
 
 # ============================================================================

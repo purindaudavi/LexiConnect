@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   getCaseFeed,
   getMyCaseRequests,
+  getSpecializations,
   requestAccess,
 } from "../services/cases.service";
 
@@ -12,8 +13,11 @@ export default function LawyerCaseFeedPage() {
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestErrorById, setRequestErrorById] = useState({});
+  const [specializations, setSpecializations] = useState([]);
+  const [specializationsLoading, setSpecializationsLoading] = useState(true);
+  const [specializationsError, setSpecializationsError] = useState("");
 
-  const [filters, setFilters] = useState({ district: "", category: "" });
+  const [filters, setFilters] = useState({ district: "", specialization_id: "" });
   const [requestingId, setRequestingId] = useState(null);
   const [requestMessage, setRequestMessage] = useState("");
   const [requestsByCaseId, setRequestsByCaseId] = useState({});
@@ -26,7 +30,9 @@ export default function LawyerCaseFeedPage() {
     try {
       const data = await getCaseFeed({
         district: filters.district || undefined,
-        category: filters.category || undefined,
+        specialization_id: filters.specialization_id
+          ? Number(filters.specialization_id)
+          : undefined,
       });
       setCases(data || []);
     } catch (err) {
@@ -59,9 +65,28 @@ export default function LawyerCaseFeedPage() {
     }
   };
 
+  const loadSpecializations = async () => {
+    setSpecializationsLoading(true);
+    setSpecializationsError("");
+    try {
+      const data = await getSpecializations();
+      setSpecializations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to load specializations.";
+      setSpecializationsError(message);
+      setSpecializations([]);
+    } finally {
+      setSpecializationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadCases();
     loadMyRequests();
+    loadSpecializations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -127,12 +152,26 @@ export default function LawyerCaseFeedPage() {
               value={filters.district}
               onChange={(e) => setFilters((f) => ({ ...f, district: e.target.value }))}
             />
-            <input
-              className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-              placeholder="Category"
-              value={filters.category}
-              onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))}
-            />
+            <div>
+              <select
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                value={filters.specialization_id}
+                onChange={(e) => setFilters((f) => ({ ...f, specialization_id: e.target.value }))}
+              >
+                <option value="">
+                  {specializationsLoading ? "Loading..." : "All specializations"}
+                </option>
+                {!specializationsLoading &&
+                  specializations.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+              {specializationsError && (
+                <div className="mt-1 text-xs text-red-300">{specializationsError}</div>
+              )}
+            </div>
             <button
               onClick={applyFilters}
               className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-sm font-semibold"
@@ -168,7 +207,9 @@ export default function LawyerCaseFeedPage() {
                     {c.status}
                   </div>
                 </div>
-                <div className="text-sm text-amber-200">{c.category}</div>
+                <div className="text-sm text-amber-200">
+                  {c.specialization?.name || c.specialization_name || c.category || "—"}
+                </div>
                 <div className="text-sm text-slate-400">{c.district}</div>
                 <div className="text-sm text-slate-300 line-clamp-3">{c.summary_public}</div>
                 <div className="text-xs text-slate-500">
