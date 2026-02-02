@@ -352,30 +352,68 @@ export default function ApprenticeCaseView() {
   // ---------------------------------------
   // Download doc
   // ---------------------------------------
-  const handleDownload = async (doc) => {
-    try {
-      const { blob, filename } = await downloadDocument(doc.id);
+  const guessExtFromMime = (mime = "") => {
+  const m = mime.toLowerCase();
+  if (m.includes("pdf")) return "pdf";
+  if (m.includes("png")) return "png";
+  if (m.includes("jpeg") || m.includes("jpg")) return "jpg";
+  if (m.includes("wordprocessingml")) return "docx";
+  if (m.includes("msword")) return "doc";
+  return "";
+};
 
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
+const hasExtension = (name = "") => /\.[a-z0-9]{2,6}$/i.test(name);
 
-      const fallbackName = doc.title
-        ? doc.title
-        : doc.original_filename
-        ? doc.original_filename
-        : `document-${doc.id}`;
+const sanitizeFilename = (name = "") =>
+  String(name)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
 
-      a.download = filename || fallbackName;
+const handleDownload = async (doc) => {
+  try {
+    const { blob, filename, contentType } = await downloadDocument(doc.id);
 
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (e) {
-      alert(e?.response?.data?.detail || "Failed to download document.");
+    // build best possible name
+    const fallbackBase =
+      doc.original_filename ||
+      doc.file_name ||
+      doc.title ||
+      doc.file_path?.split("/").pop() ||
+      `document-${doc.id}`;
+
+    let finalName = sanitizeFilename(filename || fallbackBase);
+
+    // if no extension, try to add one
+    if (!hasExtension(finalName)) {
+      // try infer from doc fields first
+      const inferredFromDoc =
+        (doc.original_filename && doc.original_filename.split(".").pop()) ||
+        (doc.title && doc.title.split(".").pop()) ||
+        (doc.file_path && doc.file_path.split(".").pop()) ||
+        "";
+
+      const extFromDoc = inferredFromDoc && inferredFromDoc.length <= 6 ? inferredFromDoc : "";
+      const extFromMime = guessExtFromMime(blob?.type || contentType || "");
+
+      const ext = extFromDoc || extFromMime;
+      if (ext) finalName = `${finalName}.${ext}`;
     }
-  };
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = finalName;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(e?.response?.data?.detail || "Failed to download document.");
+  }
+};
+
 
   // ---------------------------------------
   // Save review link

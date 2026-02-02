@@ -96,11 +96,18 @@ export const downloadDocument = async (docId) => {
 
   // Try to extract filename from Content-Disposition
   const disposition = res.headers?.["content-disposition"] || "";
-  const match = disposition.match(/filename="?([^"]+)"?/i);
-  const filename = match?.[1] || `document-${docId}`;
+  let filename = "";
 
-  return { blob: res.data, filename };
+  // supports filename="x.pdf" and filename*=UTF-8''x.pdf
+  const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  const plainMatch = disposition.match(/filename="?([^"]+)"?/i);
+
+  if (utf8Match?.[1]) filename = decodeURIComponent(utf8Match[1]);
+  else if (plainMatch?.[1]) filename = plainMatch[1];
+
+  return { blob: res.data, filename, contentType: res.headers?.["content-type"] };
 };
+
 
 
 // add this to your apprenticeshipApi.js (same place you already have fetchCaseNotesForLawyer)
