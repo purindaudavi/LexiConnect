@@ -17,8 +17,11 @@ from sqlalchemy.exc import OperationalError
 # Core DB
 from .database import SessionLocal, engine
 
+# ✅ IMPORTANT: ensure Specialization model is registered before Case mapper config
+from app.models.specialization import Specialization  # noqa: F401
+
 # Ensure models are loaded (so Alembic / SQLAlchemy sees them)
-from .models import (  # noqa
+from .models import (  # noqa: F401
     branch,
     kyc_submission,
     lawyer,
@@ -27,6 +30,7 @@ from .models import (  # noqa
     checklist_template,
 )
 
+# ✅ Ensure module models are loaded (cases depends on specialization mapping)
 from app.modules.cases import models as case_models  # noqa: F401
 
 # Seed
@@ -37,43 +41,47 @@ from app.seed import seed_all
 # ---------------------------
 
 # OK Checklist Answers module router
-from app.modules.checklist_answers.router import (
+from app.modules.checklist_answers.router import (  # noqa: E402
     router as checklist_answers_router,
     booking_checklist_router,
 )
 
 # Legacy routers
-from .routers import admin, auth, bookings, dev, lawyers, token_queue, users  # noqa: F401
-from .routers import apprentices  # noqa: F401
-from .routers import admin_overview  # noqa: F401
-from app.routers.lawyer_cases import router as lawyer_cases_router
-from app.routers.lawyer_availability import router as lawyer_availability_router
+from .routers import admin, auth, bookings, dev, lawyers, token_queue, users  # noqa: F401, E402
+from .routers import apprentices  # noqa: F401, E402
+from .routers import admin_overview  # noqa: F401, E402
+from app.routers.lawyer_cases import router as lawyer_cases_router  # noqa: E402
+from app.routers.lawyer_availability import router as lawyer_availability_router  # noqa: E402
 
 # Module routers
-from app.modules.kyc.router import router as kyc_router
-from app.modules.kyc.router import admin_router as admin_kyc_router
-from app.modules.branches.router import router as branches_router
-from app.modules.service_packages.router import router as service_packages_router
-from app.modules.checklist_templates.router import router as checklist_router
-from app.modules.availability.router import router as availability_router
-from app.modules.blackouts.router import router as blackouts_router
-from app.modules.apprenticeship.router import router as apprenticeship_router
-from app.modules.queue.router import router as queue_router
-from app.modules.lawyer_dashboard.routes import router as lawyer_dashboard_router
-from app.modules.documents.routes import router as documents_router
-from app.modules.disputes.routes import (
+from app.modules.kyc.router import router as kyc_router  # noqa: E402
+from app.modules.kyc.router import admin_router as admin_kyc_router  # noqa: E402
+from app.modules.branches.router import router as branches_router  # noqa: E402
+from app.modules.service_packages.router import router as service_packages_router  # noqa: E402
+from app.modules.checklist_templates.router import router as checklist_router  # noqa: E402
+from app.modules.availability.router import router as availability_router  # noqa: E402
+from app.modules.blackouts.router import router as blackouts_router  # noqa: E402
+from app.modules.apprenticeship.router import router as apprenticeship_router  # noqa: E402
+from app.modules.queue.router import router as queue_router  # noqa: E402
+from app.modules.lawyer_dashboard.routes import router as lawyer_dashboard_router  # noqa: E402
+from app.modules.documents.routes import router as documents_router  # noqa: E402
+from app.modules.documents.routes import booking_router as booking_documents_router  # noqa: E402
+from app.modules.documents.routes import cases_router as cases_documents_router  # noqa: E402
+from app.modules.disputes.routes import (  # noqa: E402
     router as disputes_router,
     admin_router as admin_disputes_router,
     booking_router as booking_disputes_router,
 )
-from app.modules.case_files.router import router as case_files_router
-from app.modules.lawyer_profiles.routes import router as lawyer_profiles_router
-from app.modules.audit_log.routes import router as audit_log_router
-from app.modules.intake.routes import router as intake_router
-from app.modules.cases.routes import router as cases_router
+from app.modules.case_files.router import router as case_files_router  # noqa: E402
+from app.modules.lawyer_profiles.routes import router as lawyer_profiles_router  # noqa: E402
+from app.modules.audit_log.routes import router as audit_log_router  # noqa: E402
+from app.modules.intake.routes import router as intake_router  # noqa: E402
+from app.modules.cases.routes import router as cases_router  # noqa: E402
+from app.modules.specializations.routes import router as specializations_router  # noqa: E402
+from app.modules.rbac.routes import router as rbac_router  # noqa: E402
 
 # API v1 routers
-from .api.v1 import admin as admin_v1, booking as booking_v1
+from .api.v1 import admin as admin_v1, booking as booking_v1  # noqa: E402
 
 # ---------------------------
 # FastAPI app
@@ -181,6 +189,8 @@ app.include_router(lawyer_dashboard_router, prefix="/api")
 # ✅ Documents router MUST be included ONCE
 # NOTE: documents_router already has prefix="/api/documents" in its own file.
 app.include_router(documents_router)
+app.include_router(booking_documents_router)
+app.include_router(cases_documents_router)
 
 # ✅ Checklist answers routers
 app.include_router(checklist_answers_router)
@@ -212,6 +222,8 @@ app.include_router(admin_kyc_router)
 # ✅ Dedicated includes
 app.include_router(lawyer_availability_router, prefix="/api")
 app.include_router(cases_router, prefix="/api")
+app.include_router(specializations_router, prefix="/api")
+app.include_router(rbac_router)
 
 # ✅ API v1 routers
 app.include_router(admin_v1.router)
@@ -245,7 +257,6 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
-
 
 # ---------------------------
 # Root + favicon helpers

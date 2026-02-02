@@ -63,6 +63,8 @@ const formatTime = (t) => {
 
 const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+const isUuid = (value) =>
+  typeof value === "string" && value.includes("-");
 
 // ============== DEMO DATA GENERATOR ==============
 const buildDemoData = () => {
@@ -156,6 +158,7 @@ const buildDemoData = () => {
 // ============== MAIN COMPONENT ==============
 const TokenQueue = () => {
   const endpoint = import.meta.env.VITE_TOKEN_QUEUE_ENDPOINT || "/api/token-queue";
+  const slotsEndpoint = `${endpoint}/slots`;
 
   // Calendar state
   const today = new Date();
@@ -210,7 +213,7 @@ const TokenQueue = () => {
           t.client_email,
           t.client_phone,
           t.reason,
-          `#${t.token_number}`,
+          `#${t.token_number || t.id}`,
         ]
           .filter(Boolean)
           .join(" ")
@@ -224,7 +227,7 @@ const TokenQueue = () => {
 
   // Statistics for selected date
   const stats = useMemo(() => {
-    const tokens = selectedDateData.tokens || [];
+    const tokens = filteredTokens || [];
     const counts = { pending: 0, confirmed: 0, in_progress: 0, completed: 0, cancelled: 0, no_show: 0 };
     tokens.forEach((t) => {
       const s = normalizeStatus(t.status);
@@ -232,23 +235,16 @@ const TokenQueue = () => {
     });
     const inProgress = tokens.find((t) => normalizeStatus(t.status) === "in_progress");
     return { total: tokens.length, ...counts, inProgress };
-  }, [selectedDateData.tokens]);
+  }, [filteredTokens]);
 
   // Group tokens by slot time for slot-based view
   const tokensBySlot = useMemo(() => {
     const slots = selectedDateData.slots || [];
     const tokens = filteredTokens || [];
-    
+    const tokenIds = new Set(tokens.map((t) => t.id));
+
     return slots.map((slot) => {
-      const slotStart = formatTime(slot.start_time);
-      const slotEnd = formatTime(slot.end_time);
-      
-      // Find tokens that fall within this slot's time range
-      const slotTokens = tokens.filter((token) => {
-        const tokenTime = formatTime(token.time);
-        return tokenTime >= slotStart && tokenTime < slotEnd;
-      });
-      
+      const slotTokens = (slot.bookings || []).filter((t) => tokenIds.has(t.id));
       return {
         ...slot,
         tokens: slotTokens,
@@ -273,30 +269,60 @@ const TokenQueue = () => {
     try {
       const params = new URLSearchParams();
       params.append("date", dateStr);
-      const { data } = await api.get(`${endpoint}?${params.toString()}`);
-      
-      const tokens = (Array.isArray(data) ? data : []).map((x) => ({
-        ...x,
-        status: normalizeStatus(x.status),
-        client_name: x.client_name || `Client #${x.client_id}`,
+      const { data } = await api.get(`${slotsEndpoint}?${params.toString()}`);
+
+      const slots = Array.isArray(data?.slots) ? data.slots : [];
+      const tokens = slots.flatMap((slot) =>
+        (slot.bookings || []).map((b) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          client_name: b.client_name || `Client #${b.client_id}`,
+          time: b.time_local,
+          slot_id: slot.id,
+        }))
+      );
+
+      const ordered = [...tokens].sort((a, b) => {
+        const at = new Date(a.scheduled_at).getTime();
+        const bt = new Date(b.scheduled_at).getTime();
+        return at - bt;
+      });
+      const tokenNumberById = new Map();
+      ordered.forEach((t, idx) => tokenNumberById.set(t.id, idx + 1));
+      const tokensWithNumbers = tokens.map((t) => ({
+        ...t,
+        token_number: tokenNumberById.get(t.id) || t.token_number,
+      }));
+      const slotsWithNumbers = slots.map((slot) => ({
+        ...slot,
+        bookings: (slot.bookings || []).map((b) => ({
+          ...b,
+          status: normalizeStatus(b.status),
+          client_name: b.client_name || `Client #${b.client_id}`,
+          time: b.time_local,
+          token_number: tokenNumberById.get(b.id) || b.token_number,
+        })),
       }));
 
-      // Also fetch slots for the day
-      let slots = [];
-      try {
-        const { data: slotsData } = await api.get("/api/lawyer-availability/weekly");
-        const dayOfWeek = new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" }).toUpperCase();
-        slots = (slotsData || []).filter((s) => {
-          const slotDay = (s.day_of_week || "").toUpperCase();
-          return slotDay === dayOfWeek || slotDay.startsWith(dayOfWeek.slice(0, 3));
+      if (import.meta.env.DEV) {
+        console.log("[TokenQueue] date", dateStr, "slots", slots.length, "bookings", tokens.length);
+        slots.forEach((slot) => {
+          console.log(
+            "[TokenQueue] slot",
+            slot.start_time,
+            "-",
+            slot.end_time,
+            "branch",
+            slot.branch_id,
+            "bookings",
+            (slot.bookings || []).length
+          );
         });
-      } catch (e) {
-        console.warn("Could not fetch slots", e);
       }
 
       setAllData((prev) => ({
         ...prev,
-        [dateStr]: { slots, tokens },
+        [dateStr]: { slots: slotsWithNumbers, tokens: tokensWithNumbers },
       }));
       setIsDemo(false);
     } catch (err) {
@@ -362,6 +388,11 @@ const TokenQueue = () => {
         });
         return updated;
       });
+      return;
+    }
+
+    if (!isUuid(id)) {
+      setError("Token queue actions are unavailable for booking-based view.");
       return;
     }
 

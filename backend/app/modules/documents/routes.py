@@ -12,6 +12,7 @@ from app.models.user import User, UserRole
 from app.routers.auth import get_current_user
 from app.modules.cases.models import Case
 from app.models.booking import Booking
+from app.modules.documents.models import Document
 
 from app.modules.apprenticeship import service as apprenticeship_service
 
@@ -27,21 +28,23 @@ from .service import (
     save_upload,
     create_document,
     create_document_for_case,
-    list_documents,
     get_documents_by_case,
     get_document,
     list_document_comments,
     create_document_comment,
     get_document_comment_meta,
     delete_document,
+    # optional helpers / new features (apprentice doc reviews)
     resolve_case_id_from_booking,
-    # review links
     get_document_review_links,
     get_document_review_link_for_apprentice,
     upsert_document_review_link,
 )
 
+
 router = APIRouter(prefix="/api/documents", tags=["Documents"])
+booking_router = APIRouter(prefix="/api/bookings", tags=["Documents"])
+cases_router = APIRouter(prefix="/api/cases", tags=["Documents"])
 
 
 
@@ -210,6 +213,36 @@ def _attach_file_urls(docs: List):
     return docs
 
 
+def _list_booking_documents(db: Session, current_user: User, booking_id: int):
+    booking = _get_booking_or_404(db, booking_id)
+    _ensure_can_access_booking_docs(current_user, booking)
+
+    case_id = getattr(booking, "case_id", None)
+    if not case_id:
+        raise HTTPException(status_code=400, detail="Booking has no case_id")
+
+    # Regression fix: documents are case-owned; booking_id is metadata only.
+    # Backfill legacy docs that only had booking_id set.
+    legacy_docs = (
+        db.query(Document)
+        .filter(Document.booking_id == booking_id, Document.case_id.is_(None))
+        .all()
+    )
+    if legacy_docs:
+        for doc in legacy_docs:
+            doc.case_id = case_id
+        db.commit()
+
+    docs = (
+        db.query(Document)
+        .filter(Document.case_id == case_id)
+        .order_by(Document.uploaded_at.desc())
+        .all()
+    )
+    _attach_comment_meta(db, docs)
+    return _attach_file_urls(docs)
+
+
 # -------------------------
 # CASE routes
 # -------------------------
@@ -270,6 +303,23 @@ def upload_case_document(
     return doc
 
 
+@cases_router.get("/{case_id}/documents", response_model=List[DocumentOut])
+def get_case_documents(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    if not _can_access_case(current_user, case, db):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    docs = get_documents_by_case(db, case_id)
+    _attach_comment_meta(db, docs)
+    return _attach_file_urls(docs)
+
+
 # -------------------------
 # BOOKING upload/list
 # -------------------------
@@ -287,7 +337,9 @@ def upload_document(
 
     safe_title = (title or file_name or file.filename or "Untitled").strip()
     file_path = save_upload(file)
-    case_id = resolve_case_id_from_booking(db, booking_id)
+    case_id = getattr(booking, "case_id", None)
+    if not case_id:
+        raise HTTPException(status_code=400, detail="Booking has no case_id")
 
     doc = create_document(
         db,
@@ -310,12 +362,16 @@ def get_documents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    booking = _get_booking_or_404(db, booking_id)
-    _ensure_can_access_booking_docs(current_user, booking)
+    return _list_booking_documents(db, current_user, booking_id)
 
-    docs = list_documents(db, booking_id=booking_id)
-    _attach_comment_meta(db, docs)
-    return _attach_file_urls(docs)
+
+@booking_router.get("/{booking_id}/documents", response_model=List[DocumentOut])
+def get_booking_documents(
+    booking_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _list_booking_documents(db, current_user, booking_id)
 
 
 @router.get("/{doc_id}", response_model=DocumentOut)

@@ -11,7 +11,7 @@ class BranchCreate(BranchBase):
 
 class Branch(BranchBase):
     id: int
-    lawyer_id: int
+    user_id: int
 
     class Config:
         from_attributes = True

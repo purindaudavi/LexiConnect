@@ -9,6 +9,11 @@ export async function getMyCases() {
   return res.data;
 }
 
+export async function getSpecializations() {
+  const res = await api.get("/api/specializations");
+  return res.data;
+}
+
 export async function getCaseById(caseId) {
   const res = await api.get(`/api/cases/${caseId}`);
   return res.data;

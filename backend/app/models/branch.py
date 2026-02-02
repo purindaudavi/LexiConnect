@@ -6,7 +6,7 @@ class Branch(Base):
     __tablename__ = "branches"
 
     id = Column(Integer, primary_key=True, index=True)
-    lawyer_id = Column(Integer, ForeignKey("lawyers.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     district = Column(String, nullable=False)
     city = Column(String, nullable=False)

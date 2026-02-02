@@ -11,10 +11,15 @@ import api from "../../../services/api";
  */
 
 // LIST booking docs (booking_id is required by backend)
-export const listDocuments = (bookingId) => {
+export const getBookingDocuments = async (bookingId) => {
   const id = Number(bookingId);
-  return api.get("/api/documents", { params: { booking_id: id } });
+  const url = `/api/bookings/${id}/documents`;
+
+  const res = await api.get(url);
+  return res;
 };
+
+export const listDocuments = (bookingId) => getBookingDocuments(bookingId);
 
 // LIST case docs
 export const listCaseDocuments = (caseId) => {

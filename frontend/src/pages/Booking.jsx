@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   createBooking,
   getLawyerServicePackages,
-  getLawyerIdByUser,
 } from "../services/bookings";
 import { getMyCases, createCase as createCaseApi } from "../features/cases/services/cases.service";
 import {
@@ -109,6 +108,31 @@ const formatDateLabel = (value) => {
   }
 };
 
+const dedupeSlots = (slots, date) => {
+  const sorted = [...slots].sort((a, b) => {
+    const aTime = new Date(a.start).getTime();
+    const bTime = new Date(b.start).getTime();
+    return aTime - bTime;
+  });
+  const map = new Map();
+  for (const slot of sorted) {
+    const localStart = toLocalTime(slot.start);
+    const key = `${slot.branch_id || "none"}-${slot.start}`;
+    if (map.has(key)) continue;
+    map.set(key, slot);
+  }
+  return Array.from(map.values());
+};
+
+const toLocalTime = (isoValue) => {
+  if (!isoValue) return "";
+  const date = new Date(isoValue);
+  if (Number.isNaN(date.getTime())) return "";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
+
 const SlotRail = ({
   date,
   slots,
@@ -157,7 +181,7 @@ const SlotRail = ({
           ref={railRef}
           className="flex gap-3 overflow-x-auto pb-2 scroll-smooth snap-x snap-mandatory"
         >
-          {slots.map((slot, idx) => {
+          {slots.map((slot) => {
             const isSelected =
               selectedSlot &&
               selectedSlot.date === slot.date &&
@@ -171,7 +195,7 @@ const SlotRail = ({
             return (
               <button
                 type="button"
-                key={`${slot.date}-${slot.start_time}-${idx}`}
+                key={slot.uiKey}
                 onClick={() => {
                   if (isDisabled) return;
                   onSelect(slot);
@@ -229,8 +253,11 @@ export default function Booking() {
   const [step, setStep] = useState(1);
   const [services, setServices] = useState([]);
   const [selectedServiceId, setSelectedServiceId] = useState(null);
-  const [resolvedPackageLawyerId, setResolvedPackageLawyerId] = useState(null);
   const [packagesCount, setPackagesCount] = useState(0);
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [cases, setCases] = useState([]);
   const [selectedCaseId, setSelectedCaseId] = useState(null);
   const [showCaseModal, setShowCaseModal] = useState(false);
@@ -254,6 +281,7 @@ export default function Booking() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
+  const [slotsRefreshKey, setSlotsRefreshKey] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slotRangeFrom, setSlotRangeFrom] = useState("");
   const [slotRangeTo, setSlotRangeTo] = useState("");
@@ -299,40 +327,40 @@ export default function Booking() {
   const requiredNextStart = allowMultipleSessions && selectedSlot ? selectedSlot.end_time : null;
 
   const derivedSlotsByDate = useMemo(() => {
-    if (!durationMinutes || !availableSlots.length) return {};
-    const stepMinutes = durationMinutes;
+    if (!availableSlots.length) return {};
     const grouped = {};
 
-    for (const window of availableSlots) {
-      const start = parseMinutes(window.start_time);
-      const end = parseMinutes(window.end_time);
-      if (start == null || end == null || end <= start) continue;
-
-      for (let t = start; t + durationMinutes <= end; t += stepMinutes) {
-        const slotStart = formatMinutes(t);
-        const slotEnd = formatMinutes(t + durationMinutes);
-        const arriveBy = formatMinutes(Math.max(0, t - 10));
-        const entry = {
-          ...window,
-          start_time: slotStart,
-          end_time: slotEnd,
+    for (const day of availableSlots) {
+      const date = day.date;
+      const deduped = dedupeSlots(day.slots || [], date);
+      const daySlots = deduped.map((slot) => {
+        const start = slot.start;
+        const end = slot.end;
+        const localStart = toLocalTime(start);
+        const localEnd = toLocalTime(end);
+        const startMin = parseMinutes(localStart);
+        const arriveBy = startMin != null ? formatMinutes(Math.max(0, startMin - 10)) : "";
+        return {
+          ...slot,
+          date,
+          start_time: localStart,
+          end_time: localEnd,
           arrive_by: arriveBy,
+          uiKey: `${slot.branch_id || "none"}-${slot.start}`,
         };
-        if (!grouped[window.date]) grouped[window.date] = [];
-        grouped[window.date].push(entry);
-      }
-    }
+      });
 
-    Object.values(grouped).forEach((slots) => {
-      slots.sort((a, b) => {
+      daySlots.sort((a, b) => {
         const aMin = parseMinutes(a.start_time) ?? 0;
         const bMin = parseMinutes(b.start_time) ?? 0;
         return aMin - bMin;
       });
-    });
+
+      if (daySlots.length) grouped[date] = daySlots;
+    }
 
     return grouped;
-  }, [availableSlots, durationMinutes]);
+  }, [availableSlots]);
 
   useEffect(() => {
     if (!isDev) return;
@@ -343,6 +371,16 @@ export default function Booking() {
     if (!isDev) return;
     console.debug("[booking] availability windows", availableSlots);
   }, [availableSlots, isDev]);
+
+  useEffect(() => {
+    if (!selectedBranchId) {
+      setSelectedSlot(null);
+      setScheduledAt("");
+      return;
+    }
+    setSelectedSlot(null);
+    setScheduledAt("");
+  }, [selectedBranchId]);
 
   useEffect(() => {
     if (!isDev) return;
@@ -507,24 +545,12 @@ export default function Booking() {
       const userId = prefilledLawyerId || Number(lawyerField);
       if (!userId || Number.isNaN(userId)) return;
       try {
-        let pkgLawyerId = null;
-        try {
-          pkgLawyerId = await getLawyerIdByUser(userId);
-        } catch (err) {
-          if (err?.response?.status !== 404) throw err;
-        }
-
-        if (!pkgLawyerId) {
-          pkgLawyerId = userId;
-        }
-
-        setResolvedPackageLawyerId(pkgLawyerId);
-        const data = await getLawyerServicePackages(pkgLawyerId);
+        const data = await getLawyerServicePackages(userId);
         setServices(data || []);
         setPackagesCount((data || []).length);
         console.debug("[booking] packages debug", {
           routeParam: userId,
-          resolvedLawyerId: pkgLawyerId,
+          resolvedLawyerId: userId,
           packagesCount: (data || []).length,
         });
       } catch (err) {
@@ -539,6 +565,41 @@ export default function Booking() {
     };
     loadServices();
   }, [prefilledLawyerId, lawyerField]);
+
+  useEffect(() => {
+    const loadBranches = async () => {
+      const userId = prefilledLawyerId || Number(lawyerField);
+      if (!userId || Number.isNaN(userId)) return;
+      setBranchesLoading(true);
+      setBranchesError("");
+      try {
+        const { data } = await api.get(`/lawyers/${userId}/branches`);
+        const list = Array.isArray(data) ? data : [];
+        setBranches(list);
+        if (!selectedBranchId && list.length === 1) {
+          setSelectedBranchId(list[0].id);
+        }
+      } catch (err) {
+        setBranches([]);
+        setBranchesError(
+          err?.response?.data?.detail ||
+            err?.response?.data?.message ||
+            "Failed to load locations."
+        );
+      } finally {
+        setBranchesLoading(false);
+      }
+    };
+    loadBranches();
+  }, [prefilledLawyerId, lawyerField]);
+
+  useEffect(() => {
+    if (!selectedBranchId) return;
+    const exists = branches.some((b) => b.id === selectedBranchId);
+    if (!exists) {
+      setSelectedBranchId(null);
+    }
+  }, [branches, selectedBranchId]);
 
   useEffect(() => {
     const loadLawyerSummary = async () => {
@@ -568,17 +629,20 @@ export default function Booking() {
       setSlotsLoading(true);
       try {
         const lawyerParam =
-          resolvedPackageLawyerId ||
-          prefilledLawyerId ||
-          (lawyerField ? Number(lawyerField) : null);
-        if (!lawyerParam || !slotRangeFrom || !slotRangeTo) {
+          prefilledLawyerId || (lawyerField ? Number(lawyerField) : null);
+        if (!lawyerParam || !slotRangeFrom || !selectedServiceId || !selectedBranchId) {
           setSlotsLoading(false);
           return;
         }
-        const url = `/api/lawyer-availability/slots?from_date=${slotRangeFrom}&to_date=${slotRangeTo}&lawyer_id=${lawyerParam}`;
+        const url =
+          `/api/bookings/available-slots?lawyer_user_id=${lawyerParam}` +
+          `&branch_id=${selectedBranchId}` +
+          `&service_package_id=${selectedServiceId}` +
+          `&start_date=${slotRangeFrom}` +
+          `&days=14` +
+          ``;
         const { data } = await api.get(url);
-        const filtered = (data || []).filter((s) => !s.is_blackout);
-        setAvailableSlots(filtered);
+        setAvailableSlots(Array.isArray(data) ? data : []);
       } catch (err) {
         setSlotsError(
           err?.response?.data?.detail ||
@@ -592,7 +656,15 @@ export default function Booking() {
     if (step >= 3) {
       fetchSlots();
     }
-  }, [step, resolvedPackageLawyerId, prefilledLawyerId, lawyerField, slotRangeFrom, slotRangeTo]);
+  }, [
+    step,
+    prefilledLawyerId,
+    lawyerField,
+    slotRangeFrom,
+    selectedServiceId,
+    selectedBranchId,
+    slotsRefreshKey,
+  ]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -614,6 +686,11 @@ export default function Booking() {
       return;
     }
 
+    if (!selectedBranchId) {
+      setError("Please choose a location.");
+      return;
+    }
+
     if (!scheduledAt) {
       setError("Please choose a date and time.");
       return;
@@ -624,16 +701,18 @@ export default function Booking() {
       scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       note: note.trim() || undefined,
       service_package_id: selectedServiceId,
+      branch_id: selectedBranchId ?? selectedSlot?.branch_id ?? undefined,
       case_id: selectedCaseId,
     };
 
-    try {
-      setLoading(true);
-      const created = await createBooking(payload);
-      const bookingId = created?.id;
-      if (bookingId) {
-        navigate(`/client/bookings/${bookingId}/intake`);
-      } else {
+      try {
+        setLoading(true);
+        const created = await createBooking(payload);
+        setSlotsRefreshKey((prev) => prev + 1);
+        const bookingId = created?.id;
+        if (bookingId) {
+          navigate(`/client/bookings/${bookingId}/intake`);
+        } else {
         navigate("/client/manage-bookings");
       }
     } catch (err) {
@@ -826,7 +905,41 @@ export default function Booking() {
           <section className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 space-y-4">
             <div className="text-sm text-amber-200 font-semibold">Step 3 - Choose Date & Time</div>
             <div className="space-y-3">
-              <div className="text-sm text-slate-300">Available Slots (Next 14 Days)</div>
+              <div className="space-y-2">
+                <label className="text-sm text-slate-400">Choose a location</label>
+                {branchesLoading && (
+                  <div className="text-sm text-slate-400">Loading locations...</div>
+                )}
+                {branchesError && (
+                  <div className="text-sm text-red-200 border border-red-700 bg-red-900/30 rounded-lg p-3">
+                    {branchesError}
+                  </div>
+                )}
+                {!branchesLoading && !branchesError && branches.length === 0 && (
+                  <div className="text-sm text-slate-400">
+                    No locations available.
+                  </div>
+                )}
+                {!branchesLoading && branches.length > 0 && (
+                  <select
+                    value={selectedBranchId || ""}
+                    onChange={(e) =>
+                      setSelectedBranchId(e.target.value ? Number(e.target.value) : null)
+                    }
+                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">Select a location</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} - {b.address}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="text-sm text-slate-300">
+                Available times
+              </div>
               {usedDurationFallback && (
                 <div className="text-xs text-amber-200">
                   Service duration not provided. Defaulting to 30 minutes.
@@ -837,7 +950,12 @@ export default function Booking() {
                   Select a service to see available times.
                 </div>
               )}
-              {selectedServiceId && slotsLoading && (
+              {selectedServiceId && !selectedBranchId && branches.length > 0 && (
+                <div className="text-sm text-slate-400">
+                  Select a location to see available times.
+                </div>
+              )}
+              {selectedServiceId && selectedBranchId && slotsLoading && (
                 <div className="grid grid-cols-1 gap-3">
                   {Array.from({ length: 3 }).map((_, idx) => (
                     <div
@@ -847,12 +965,13 @@ export default function Booking() {
                   ))}
                 </div>
               )}
-              {selectedServiceId && slotsError && (
+              {selectedServiceId && selectedBranchId && slotsError && (
                 <div className="text-sm text-red-200 border border-red-700 bg-red-900/30 rounded-lg p-3">
                   {slotsError}
                 </div>
               )}
               {selectedServiceId &&
+                selectedBranchId &&
                 !slotsLoading &&
                 !slotsError &&
                 Object.keys(derivedSlotsByDate).length === 0 && (
@@ -861,7 +980,7 @@ export default function Booking() {
                   </div>
                 )}
 
-              {selectedServiceId && !slotsLoading && Object.keys(derivedSlotsByDate).length > 0 && (
+              {selectedServiceId && selectedBranchId && !slotsLoading && Object.keys(derivedSlotsByDate).length > 0 && (
                 <div className="space-y-3">
                   {Object.entries(derivedSlotsByDate)
                     .sort(([a], [b]) => (a > b ? 1 : -1))
@@ -886,7 +1005,7 @@ export default function Booking() {
                             return;
                           }
                           setSelectedSlot(slot);
-                          setScheduledAt(`${slot.date}T${slot.start_time}`);
+                          setScheduledAt(slot.start);
                         }}
                       />
                     ))}

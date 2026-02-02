@@ -1,19 +1,10 @@
 from sqlalchemy.orm import Session
 from app.models.branch import Branch
-from app.models.lawyer import Lawyer
-from fastapi import HTTPException
 
 
-def get_lawyer_by_user(db: Session, user_email: str) -> Lawyer:
-    lawyer = db.query(Lawyer).filter(Lawyer.email == user_email).first()
-    if not lawyer:
-        raise HTTPException(status_code=400, detail="Lawyer profile not found")
-    return lawyer
-
-
-def create_branch(db: Session, lawyer: Lawyer, data):
+def create_branch(db: Session, user_id: int, data):
     branch = Branch(
-        lawyer_id=lawyer.id,
+        user_id=user_id,
         name=data.name,
         district=data.district,
         city=data.city,
@@ -25,8 +16,8 @@ def create_branch(db: Session, lawyer: Lawyer, data):
     return branch
 
 
-def get_my_branches(db: Session, lawyer: Lawyer):
-    return db.query(Branch).filter(Branch.lawyer_id == lawyer.id).all()
+def get_my_branches(db: Session, user_id: int):
+    return db.query(Branch).filter(Branch.user_id == user_id).all()
 
 
 def update_branch(db: Session, branch: Branch, data):

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getCaseRequests, updateCaseRequest } from "../services/cases.service";
 
 export default function CaseRequestsPanel({ caseId }) {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -92,15 +94,31 @@ export default function CaseRequestsPanel({ caseId }) {
               className="rounded-lg border border-slate-800 bg-slate-900/80 p-3 space-y-2"
             >
               <div className="flex items-center justify-between">
-                <div className="text-white font-semibold">Lawyer #{r.lawyer_id}</div>
+                <div className="text-white font-semibold">
+                  {r?.lawyer?.full_name || `Lawyer #${r.lawyer_id}`}
+                </div>
                 <div className="px-3 py-1 rounded-full text-xs bg-slate-800 border border-slate-700 text-slate-200">
                   {r.status}
                 </div>
               </div>
+              {r?.lawyer?.verified && (
+                <div className="text-xs text-amber-200">Verified</div>
+              )}
               {r.message && <div className="text-sm text-slate-300">“{r.message}”</div>}
               <div className="text-xs text-slate-500">
                 Requested: {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
               </div>
+              {r.lawyer_id && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/client/profile/${r?.lawyer?.id || r.lawyer_id}`)}
+                    className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white hover:bg-slate-700"
+                  >
+                    View Profile
+                  </button>
+                </div>
+              )}
               {r.status === "pending" && (
                 <div className="flex gap-2">
                   <button

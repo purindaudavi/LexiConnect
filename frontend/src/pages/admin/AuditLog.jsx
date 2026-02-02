@@ -18,6 +18,9 @@ export default function AuditLog() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("All Actions");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [total, setTotal] = useState(0);
 
   // simple debounce
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -26,19 +29,22 @@ export default function AuditLog() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
     setError("");
     try {
       const params = {
-        days: 7,
-        limit: 50,
+        page: nextPage,
+        page_size: nextPageSize,
       };
-      if (debouncedSearch) params.q = debouncedSearch;
+      if (debouncedSearch) params.user_email = debouncedSearch;
       if (action && action !== "All Actions") params.action = action;
 
       const res = await api.get("/api/admin/audit-logs", { params });
-      setLogs(res.data || []);
+      setLogs(res.data?.items || []);
+      setTotal(res.data?.total || 0);
+      setPage(res.data?.page || nextPage);
+      setPageSize(res.data?.page_size || nextPageSize);
     } catch (err) {
       const msg =
         err?.response?.data?.detail ||
@@ -46,6 +52,7 @@ export default function AuditLog() {
         "Failed to load audit logs.";
       setError(msg);
       setLogs([]);
+      setTotal(0);
       if (err?.response?.status === 401 || err?.response?.status === 403) {
         window.location.href = "/not-authorized";
       }
@@ -55,7 +62,7 @@ export default function AuditLog() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchLogs(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, action]);
 
@@ -103,7 +110,7 @@ export default function AuditLog() {
   };
 
   const formatTimestamp = (ts) => {
-    if (!ts) return "—";
+    if (!ts) return "-";
     try {
       const d = new Date(ts);
       return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
@@ -111,6 +118,10 @@ export default function AuditLog() {
       return ts;
     }
   };
+
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(total, (page - 1) * pageSize + logs.length);
 
   return (
     <div className="audit-log-page">
@@ -141,7 +152,7 @@ export default function AuditLog() {
               <input
                 type="text"
                 className="audit-search-input"
-                placeholder="Search by user, action, or description..."
+                placeholder="Search by user email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -179,32 +190,82 @@ export default function AuditLog() {
                 ))}
               </select>
             </div>
+
+            <div className="audit-filter-wrapper">
+              <select
+                className="audit-filter-select bg-slate-800 text-slate-100 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                value={pageSize}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setPageSize(next);
+                  setPage(1);
+                  fetchLogs(1, next);
+                }}
+              >
+                {[25, 50, 100].map((size) => (
+                  <option
+                    key={size}
+                    value={size}
+                    className="bg-slate-800 text-slate-100"
+                    style={{ backgroundColor: "#0f172a", color: "#e2e8f0" }}
+                  >
+                    {size} / page
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="audit-summary-grid">
             <div className="audit-summary-card">
               <div className="summary-label">Total Entries</div>
-              <div className="summary-value">{loading ? "…" : logs.length}</div>
+              <div className="summary-value">{loading ? "..." : total}</div>
             </div>
             <div className="audit-summary-card">
               <div className="summary-label">Today</div>
-              <div className="summary-value">{loading ? "…" : todayCount}</div>
+              <div className="summary-value">{loading ? "..." : todayCount}</div>
             </div>
             <div className="audit-summary-card">
               <div className="summary-label">Unique Users</div>
               <div className="summary-value">
-                {loading ? "…" : new Set(logs.map((l) => l.user_email || "-")).size}
+                {loading ? "..." : new Set(logs.map((l) => l.user_email || "-")).size}
               </div>
             </div>
             <div className="audit-summary-card">
               <div className="summary-label">Action Types</div>
               <div className="summary-value">
-                {loading ? "…" : new Set(logs.map((l) => l.action || "-")).size}
+                {loading ? "..." : new Set(logs.map((l) => l.action || "-")).size}
               </div>
             </div>
           </div>
 
           <div className="audit-table-card">
+            <div className="audit-pagination-row">
+              <span>
+                Showing {rangeStart}-{rangeEnd} of {total}
+              </span>
+              <div className="audit-pagination-controls">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={page <= 1}
+                  onClick={() => fetchLogs(page - 1, pageSize)}
+                >
+                  Prev
+                </button>
+                <span>
+                  Page {page} of {pageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={page >= pageCount}
+                  onClick={() => fetchLogs(page + 1, pageSize)}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
             <table className="audit-table">
               <thead>
                 <tr>
@@ -227,7 +288,7 @@ export default function AuditLog() {
                     <tr key={entry.id}>
                       <td>
                         <div className="audit-timestamp">
-                          <span className="timestamp-icon">📅</span>
+                          <span className="timestamp-icon">#</span>
                           <div className="timestamp-details">
                             <span className="timestamp-date">
                               {formatTimestamp(entry.created_at)}
@@ -237,8 +298,8 @@ export default function AuditLog() {
                       </td>
                       <td>
                         <div className="audit-user">
-                          <span className="user-icon">👤</span>
-                          <span>{entry.user_email || "—"}</span>
+                          <span className="user-icon">@</span>
+                          <span>{entry.user_email || "-"}</span>
                         </div>
                       </td>
                       <td>

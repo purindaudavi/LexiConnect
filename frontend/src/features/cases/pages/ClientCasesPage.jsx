@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createCase, getMyCases } from "../services/cases.service";
+import { createCase, getMyCases, getSpecializations } from "../services/cases.service";
 
 export default function ClientCasesPage() {
   const navigate = useNavigate();
@@ -15,13 +15,16 @@ export default function ClientCasesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     title: "",
-    category: "",
+    specialization_id: "",
     district: "",
     summary_public: "",
     summary_private: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [specializations, setSpecializations] = useState([]);
+  const [specializationsLoading, setSpecializationsLoading] = useState(true);
+  const [specializationsError, setSpecializationsError] = useState("");
 
   const loadCases = async () => {
     setLoading(true);
@@ -44,16 +47,46 @@ export default function ClientCasesPage() {
     loadCases();
   }, []);
 
+  const loadSpecializations = async () => {
+    setSpecializationsLoading(true);
+    setSpecializationsError("");
+    try {
+      const data = await getSpecializations();
+      setSpecializations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to load specializations.";
+      setSpecializationsError(message);
+      setSpecializations([]);
+    } finally {
+      setSpecializationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSpecializations();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setFormError("");
+    if (!form.specialization_id) {
+      setFormError("Please select a specialization.");
+      setSubmitting(false);
+      return;
+    }
     try {
-      await createCase(form);
+      await createCase({
+        ...form,
+        specialization_id: Number(form.specialization_id),
+      });
       setShowForm(false);
       setForm({
         title: "",
-        category: "",
+        specialization_id: "",
         district: "",
         summary_public: "",
         summary_private: "",
@@ -106,7 +139,7 @@ export default function ClientCasesPage() {
       const matchesSearch =
         !q ||
         (c.title || "").toLowerCase().includes(q) ||
-        (c.category || "").toLowerCase().includes(q) ||
+        (c.specialization?.name || c.specialization_name || c.category || "").toLowerCase().includes(q) ||
         (c.district || "").toLowerCase().includes(q) ||
         (c.summary_public || "").toLowerCase().includes(q) ||
         (c.summary_private || "").toLowerCase().includes(q);
@@ -167,7 +200,7 @@ export default function ClientCasesPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by title, category, or district"
+                placeholder="Search by title, specialization, or district"
                 className="flex-1 min-w-[220px] px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <select
@@ -232,14 +265,26 @@ export default function ClientCasesPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400">Category</label>
-                <input
+                <label className="text-xs text-slate-400">Specialization</label>
+                <select
                   required
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  value={form.specialization_id}
+                  onChange={(e) => setForm({ ...form, specialization_id: e.target.value })}
                   className="mt-1 w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="Category"
-                />
+                >
+                  <option value="">
+                    {specializationsLoading ? "Loading..." : "Select specialization"}
+                  </option>
+                  {!specializationsLoading &&
+                    specializations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+                {specializationsError && (
+                  <div className="mt-1 text-xs text-red-300">{specializationsError}</div>
+                )}
               </div>
               <div>
                 <label className="text-xs text-slate-400">District</label>
@@ -287,7 +332,7 @@ export default function ClientCasesPage() {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !form.specialization_id}
                 className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-sm font-semibold disabled:opacity-60"
               >
                 {submitting ? "Saving..." : "Save Case"}
@@ -340,9 +385,9 @@ export default function ClientCasesPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {c.category && (
+                  {(c.specialization?.name || c.specialization_name || c.category) && (
                     <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-amber-200">
-                      {c.category}
+                      {c.specialization?.name || c.specialization_name || c.category}
                     </span>
                   )}
                   {c.district && (
@@ -367,7 +412,7 @@ export default function ClientCasesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/client/cases/${c.id}`)}
+                    onClick={() => navigate(`/client/cases/${c.id}?tab=requests`)}
                     className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
                   >
                     Requests

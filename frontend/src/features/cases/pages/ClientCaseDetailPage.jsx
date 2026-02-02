@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { getCaseById, getUserById } from "../services/cases.service";
 import { listBookingsByCaseId } from "../../../services/bookings";
 import {
@@ -11,6 +11,7 @@ import CaseRequestsPanel from "../components/CaseRequestsPanel";
 export default function ClientCaseDetailPage() {
   const { caseId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const cid = Number(caseId);
 
   // NOTE: VITE_API_ORIGIN stays as http://127.0.0.1:8000 (no /api)
@@ -40,7 +41,14 @@ export default function ClientCaseDetailPage() {
   const [docsError, setDocsError] = useState("");
   const [bookingsError, setBookingsError] = useState("");
 
-  const [activeTab, setActiveTab] = useState("overview");
+  const allowedTabs = ["overview", "documents", "bookings", "requests"];
+
+  const normalizeTab = (value) =>
+    allowedTabs.includes(value) ? value : "overview";
+
+  const [activeTab, setActiveTab] = useState(() =>
+    normalizeTab(searchParams.get("tab"))
+  );
 
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadName, setUploadName] = useState("");
@@ -141,6 +149,19 @@ export default function ClientCaseDetailPage() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cid]);
+
+  useEffect(() => {
+    setActiveTab(normalizeTab(searchParams.get("tab")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const setTab = (tabId) => {
+    const next = normalizeTab(tabId);
+    setActiveTab(next);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", next);
+    setSearchParams(params);
+  };
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -273,7 +294,7 @@ export default function ClientCaseDetailPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab("documents")}
+              onClick={() => setTab("documents")}
               className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold"
             >
               Upload Document
@@ -309,7 +330,7 @@ export default function ClientCaseDetailPage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setTab(tab.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                     activeTab === tab.id
                       ? "bg-amber-600/20 border-amber-500 text-white"
@@ -389,7 +410,7 @@ export default function ClientCaseDetailPage() {
                       <div className="text-sm text-slate-300 space-y-2">
                         <p>Request a lawyer to move this case forward.</p>
                         <button
-                          onClick={() => setActiveTab("requests")}
+                          onClick={() => setTab("requests")}
                           className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-semibold"
                         >
                           Request a Lawyer
@@ -691,25 +712,25 @@ export default function ClientCaseDetailPage() {
               <h3 className="text-sm font-semibold text-white">Quick Actions</h3>
               <div className="flex flex-col gap-2">
                 <button
-                  onClick={() => setActiveTab("documents")}
+                  onClick={() => setTab("documents")}
                   className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-white hover:bg-slate-700"
                 >
                   Upload Document
                 </button>
                 <button
-                  onClick={() => setActiveTab("documents")}
+                  onClick={() => setTab("documents")}
                   className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-white hover:bg-slate-700"
                 >
                   View Documents
                 </button>
                 <button
-                  onClick={() => setActiveTab("bookings")}
+                  onClick={() => setTab("bookings")}
                   className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-white hover:bg-slate-700"
                 >
                   View Bookings
                 </button>
                 <button
-                  onClick={() => setActiveTab("requests")}
+                  onClick={() => setTab("requests")}
                   className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-white hover:bg-slate-700"
                 >
                   View Requests

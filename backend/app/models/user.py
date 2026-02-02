@@ -31,3 +31,11 @@ class User(Base):
         cascade="all, delete-orphan",
         foreign_keys="Booking.client_id",
     )
+
+    roles = relationship(
+        "Role",
+        secondary="user_roles",
+        back_populates="users",
+    )
+
+    

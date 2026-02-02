@@ -24,7 +24,7 @@ def create_service_package(
 ):
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can create service packages")
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     return service.create_package(db, lawyer, payload)
 
 @router.get("/me", response_model=List[ServicePackageResponse])
@@ -34,7 +34,7 @@ def get_my_service_packages(
 ):
     if current_user.role != "lawyer":
         raise HTTPException(status_code=403, detail="Only lawyers can view service packages")
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     return service.get_my_packages(db, lawyer)
 
 @router.patch("/{package_id}", response_model=ServicePackageResponse)
@@ -44,7 +44,7 @@ def update_service_package(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     pkg = db.query(ServicePackage).filter(ServicePackage.id == package_id, ServicePackage.lawyer_id == lawyer.id).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Service package not found")
@@ -56,7 +56,7 @@ def delete_service_package(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lawyer = service.get_lawyer_by_user(db, current_user.email)
+    lawyer = service.get_lawyer_by_user(db, current_user.id)
     pkg = db.query(ServicePackage).filter(ServicePackage.id == package_id, ServicePackage.lawyer_id == lawyer.id).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Service package not found")

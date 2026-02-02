@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import authApi from "../services/authApi";
 import { getUserFromToken } from "../services/auth";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { refreshMe } = useAuth();
   const [email, setEmail] = useState("lawyer@lexiconnect.local");
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
@@ -68,6 +70,7 @@ export default function Login() {
       else if (role === "admin") target = "/admin/dashboard";
       else if (role === "apprentice") target = "/apprentice/dashboard";
 
+      await refreshMe();
       navigate(target, { replace: true });
     } catch (err) {
       const message =

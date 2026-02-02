@@ -4,8 +4,8 @@ from app.models.lawyer import Lawyer
 from app.models.checklist_template import ChecklistTemplate
 
 
-def get_lawyer_by_user(db: Session, user_email: str) -> Lawyer:
-    lawyer = db.query(Lawyer).filter(Lawyer.email == user_email).first()
+def get_lawyer_by_user(db: Session, user_id: int) -> Lawyer:
+    lawyer = db.query(Lawyer).filter(Lawyer.user_id == user_id).first()
     if not lawyer:
         raise HTTPException(status_code=400, detail="Lawyer profile not found")
     return lawyer

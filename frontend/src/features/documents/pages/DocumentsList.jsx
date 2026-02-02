@@ -4,8 +4,8 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import {
   createDocumentComment,
   deleteDocument,
+  getBookingDocuments,
   listDocumentComments,
-  listDocuments,
 } from "../services/documents.service";
 import { getRole } from "../../../services/auth";
 
@@ -95,7 +95,7 @@ export default function DocumentsList() {
     }
 
     try {
-      const res = await listDocuments(bookingIdNum); // axios response
+      const res = await getBookingDocuments(bookingIdNum); // axios response
       const data = res?.data || [];
       setDocs(Array.isArray(data) ? data : []);
 

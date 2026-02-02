@@ -1,13 +1,20 @@
 import { Outlet } from "react-router-dom";
 import TopNav from "../components/AppNavbar";
+import useHasPrivilege from "../hooks/useHasPrivilege";
 
 const AdminLayout = () => {
+  const canAccessControl = useHasPrivilege("access_control.manage");
+  const canViewAuditLog = useHasPrivilege("audit.view");
+  const canApproveKyc = useHasPrivilege("kyc.approve");
+  const canManageDisputes = useHasPrivilege("disputes.manage");
+
   const navItems = [
     { to: "/admin/dashboard", label: "Dashboard" },
-    { to: "/admin/kyc-approval", label: "KYC Approval" },
-    { to: "/admin/disputes", label: "Disputes" },
-    { to: "/admin/audit-log", label: "Audit Log" },
-  ];
+    { to: "/admin/kyc-approval", label: "KYC Approval", enabled: canApproveKyc },
+    { to: "/admin/disputes", label: "Disputes", enabled: canManageDisputes },
+    { to: "/admin/audit-log", label: "Audit Log", enabled: canViewAuditLog },
+    { to: "/admin/access-control", label: "Access Control", enabled: canAccessControl },
+  ].filter((item) => item.enabled !== false);
 
   return (
     <>

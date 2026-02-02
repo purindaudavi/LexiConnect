@@ -60,6 +60,7 @@ import LawyerCaseFeedPage from "../features/cases/pages/LawyerCaseFeedPage";
 import ClientCaseChecklistPage from "../features/checklist/pages/ClientCaseChecklistPage";
 import LawyerCaseDetailPage from "../features/cases/pages/LawyerCaseDetailPage";
 import ClientCaseDetailPage from "../features/cases/pages/ClientCaseDetailPage";
+import ClientLawyerProfilePage from "../features/lawyers/pages/ClientLawyerProfilePage";
 
 // OK Apprenticeship pages
 import ApprenticeDashboard from "../features/apprenticeship/pages/ApprenticeDashboard";
@@ -76,6 +77,7 @@ import LawyerApprenticeshipNotes from
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import KYCApproval from "../pages/admin/KYCApproval";
 import AuditLog from "../pages/admin/AuditLog";
+import AccessControl from "../pages/admin/AccessControl";
 
 const DashboardRedirect = () => {
   const role = (getRole() || localStorage.getItem("role") || "").toLowerCase();
@@ -185,6 +187,7 @@ const AppRoutes = () => {
         <Route path="/client/dashboard" element={<Dashboard />} />
         <Route path="/client/search" element={<SearchLawyers />} />
         <Route path="/client/profile/:id" element={<LawyerPublicProfile />} />
+        <Route path="/client/lawyers/:lawyerId" element={<ClientLawyerProfilePage />} />
 
         {/* Cases */}
         <Route path="/client/cases" element={<ClientCasesPage />} />
@@ -277,6 +280,7 @@ const AppRoutes = () => {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/kyc-approval" element={<KYCApproval />} />
         <Route path="/admin/audit-log" element={<AuditLog />} />
+        <Route path="/admin/access-control" element={<AccessControl />} />
 
         <Route path="/admin/disputes" element={<AdminDisputesListPage />} />
         <Route path="/admin/disputes/:id" element={<AdminDisputeDetailPage />} />

@@ -6,7 +6,11 @@ export const getToken = () =>
   localStorage.getItem("authToken");
 
 export const logout = () => {
+  localStorage.removeItem("access_token");
   localStorage.removeItem("token");
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("token_type");
   localStorage.removeItem("role");
   localStorage.removeItem("email");
 };

@@ -120,6 +120,22 @@
   overflow-x: auto;
 }
 
+.audit-pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--bg-primary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.audit-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .audit-table {
   width: 100%;
   border-collapse: collapse;

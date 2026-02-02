@@ -14,9 +14,9 @@ from app.models.lawyer import Lawyer
 router = APIRouter(prefix="/api/lawyers", tags=["Public Lawyer Data"])
 
 
-    def _allow_client_or_lawyer(user: User):
-        if user.role not in {UserRole.client, UserRole.lawyer, UserRole.admin}:
-            raise HTTPException(status_code=403, detail="Not authorized")
+def _allow_client_or_lawyer(user: User):
+    if user.role not in {UserRole.client, UserRole.lawyer, UserRole.admin}:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
 
 @router.get("/by-user/{user_id}", response_model=dict)
@@ -25,15 +25,15 @@ def get_lawyer_by_user_id(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Map a user_id (users table) to the corresponding lawyers.id row via email."""
+    """Map a user_id (users table) to the corresponding lawyer profile."""
     _allow_client_or_lawyer(current_user)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    lawyer = db.query(Lawyer).filter(Lawyer.email == user.email).first()
+    lawyer = db.query(Lawyer).filter(Lawyer.user_id == user.id).first()
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer profile not found for this user")
-    return {"lawyer_id": lawyer.id}
+    return {"lawyer_id": user.id}
 
 
 @router.get("/{lawyer_id}/service-packages", response_model=List[ServicePackagePublicResponse])
@@ -43,9 +43,12 @@ def list_public_service_packages(
     current_user: User = Depends(get_current_user),
 ):
     _allow_client_or_lawyer(current_user)
+    lawyer_row = db.query(Lawyer).filter(Lawyer.user_id == lawyer_id).first()
+    if not lawyer_row:
+        raise HTTPException(status_code=404, detail="Lawyer profile not found")
     packages = (
         db.query(ServicePackage)
-        .filter(ServicePackage.lawyer_id == lawyer_id, ServicePackage.active.is_(True))
+        .filter(ServicePackage.lawyer_id == lawyer_row.id, ServicePackage.active.is_(True))
         .order_by(ServicePackage.id.desc())
         .all()
     )
@@ -68,10 +71,13 @@ def list_public_checklist_templates(
     current_user: User = Depends(get_current_user),
 ):
     _allow_client_or_lawyer(current_user)
+    lawyer_row = db.query(Lawyer).filter(Lawyer.user_id == lawyer_id).first()
+    if not lawyer_row:
+        raise HTTPException(status_code=404, detail="Lawyer profile not found")
     templates = (
         db.query(ChecklistTemplate)
         .filter(
-            ChecklistTemplate.lawyer_id == lawyer_id,
+            ChecklistTemplate.lawyer_id == lawyer_row.id,
             ChecklistTemplate.is_active.is_(True),
         )
         .order_by(ChecklistTemplate.id.desc())
