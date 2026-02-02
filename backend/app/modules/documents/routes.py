@@ -3,6 +3,7 @@
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
+from starlette.requests import Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,6 +12,7 @@ from app.routers.auth import get_current_user
 from app.modules.cases.models import Case
 from app.models.booking import Booking
 from app.modules.documents.models import Document
+from app.modules.audit_log.service import log_event
 
 from .schema import DocumentOut, DocumentCommentOut, DocumentCommentCreate
 from .service import (
@@ -188,6 +190,7 @@ def upload_case_document(
     title: str = Form(...),
     file_name: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -215,6 +218,25 @@ def upload_case_document(
 
     _attach_comment_meta(db, [doc])
     _attach_file_urls([doc])
+    log_event(
+        db,
+        actor=current_user,
+        actor_role=_role_str(current_user),
+        action="document_uploaded",
+        description=f"Document {doc.id} uploaded for case {case_id}",
+        meta={
+            "case_id": case_id,
+            "booking_id": doc.booking_id,
+            "document_id": doc.id,
+            "title": doc.title,
+            "original_filename": doc.original_filename,
+            "filename": doc.original_filename or (file.filename if file else None),
+        },
+        request=request,
+        entity_type="document",
+        entity_id=str(doc.id),
+        success=True,
+    )
     return doc
 
 
@@ -244,6 +266,7 @@ def upload_document(
     file_name: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -268,6 +291,25 @@ def upload_document(
     )
 
     _attach_comment_meta(db, [doc])
+    log_event(
+        db,
+        actor=current_user,
+        actor_role=_role_str(current_user),
+        action="document_uploaded",
+        description=f"Document {doc.id} uploaded for booking {booking_id}",
+        meta={
+            "case_id": case_id,
+            "booking_id": booking_id,
+            "document_id": doc.id,
+            "title": doc.title,
+            "original_filename": doc.original_filename,
+            "filename": doc.original_filename or (file.filename if file else None),
+        },
+        request=request,
+        entity_type="document",
+        entity_id=str(doc.id),
+        success=True,
+    )
     return doc
 
 
@@ -327,6 +369,7 @@ def get_document_comments(
 def create_doc_comment(
     doc_id: int,
     payload: DocumentCommentCreate,
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -344,18 +387,37 @@ def create_doc_comment(
     if not comment_text:
         raise HTTPException(status_code=400, detail="Comment text is required")
 
-    return create_document_comment(
+    comment = create_document_comment(
         db=db,
         document_id=doc_id,
         comment_text=comment_text,
         created_by_user_id=current_user.id,
         created_by_role=_role_str(current_user),
     )
+    log_event(
+        db,
+        actor=current_user,
+        actor_role=_role_str(current_user),
+        action="DOCUMENT_COMMENTED",
+        description=f"Comment added to document {doc_id}",
+        meta={
+            "case_id": doc.case_id,
+            "booking_id": doc.booking_id,
+            "document_id": doc_id,
+            "comment_id": comment.id,
+        },
+        request=request,
+        entity_type="document",
+        entity_id=str(doc_id),
+        success=True,
+    )
+    return comment
 
 
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document_by_id(
     doc_id: int,
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -369,4 +431,22 @@ def delete_document_by_id(
     ok = delete_document(db, doc_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Document not found")
+    log_event(
+        db,
+        actor=current_user,
+        actor_role=_role_str(current_user),
+        action="DOCUMENT_DELETED",
+        description=f"Document {doc_id} deleted",
+        meta={
+            "case_id": doc.case_id,
+            "booking_id": doc.booking_id,
+            "document_id": doc_id,
+            "title": doc.title,
+            "original_filename": doc.original_filename,
+        },
+        request=request,
+        entity_type="document",
+        entity_id=str(doc_id),
+        success=True,
+    )
     return None

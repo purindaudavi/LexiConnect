@@ -41,6 +41,8 @@ def create_document(
     original_filename: str | None,
     file_path: str,
 ) -> Document:
+    if booking_id is None and case_id is None:
+        raise ValueError("Either booking_id or case_id is required.")
     doc = Document(
         booking_id=booking_id,
         case_id=case_id,
@@ -111,6 +113,8 @@ def create_document_for_case(
     uploaded_by_role: str | None = None,
     original_filename: str | None = None,
 ) -> Document:
+    if case_id is None:
+        raise ValueError("case_id is required.")
     doc = Document(
         case_id=case_id,
         booking_id=booking_id,

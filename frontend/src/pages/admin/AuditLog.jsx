@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 import "./AuditLog.css";
 
 const ACTIONS = [
   "All Actions",
-  "KYC_APPROVED",
-  "KYC_REJECTED",
-  "DISPUTE_RESOLVED",
+  "document_uploaded",
+  "DOCUMENT_DELETED",
+  "DOCUMENT_COMMENTED",
+  "BOOKING_CREATED",
   "BOOKING_CONFIRMED",
   "BOOKING_REJECTED",
   "BOOKING_CANCELLED",
+  "KYC_APPROVED",
+  "KYC_REJECTED",
+  "DISPUTE_RESOLVED",
+  "PRIVILEGE_CHANGED",
+  "DEV_SAMPLE_EVENT",
 ];
+
+const SUCCESS_OPTIONS = ["All", "Success", "Failure"];
 
 export default function AuditLog() {
   const [logs, setLogs] = useState([]);
@@ -18,9 +26,13 @@ export default function AuditLog() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("All Actions");
+  const [success, setSuccess] = useState("All");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
+  const [expanded, setExpanded] = useState(new Set());
 
   // simple debounce
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -37,8 +49,12 @@ export default function AuditLog() {
         page: nextPage,
         page_size: nextPageSize,
       };
-      if (debouncedSearch) params.user_email = debouncedSearch;
+      if (debouncedSearch) params.keyword = debouncedSearch;
       if (action && action !== "All Actions") params.action = action;
+      if (success === "Success") params.success = true;
+      if (success === "Failure") params.success = false;
+      if (dateFrom) params.date_from = new Date(`${dateFrom}T00:00:00`).toISOString();
+      if (dateTo) params.date_to = new Date(`${dateTo}T23:59:59`).toISOString();
 
       const res = await api.get("/api/admin/audit-logs", { params });
       setLogs(res.data?.items || []);
@@ -64,7 +80,7 @@ export default function AuditLog() {
   useEffect(() => {
     fetchLogs(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, action]);
+  }, [debouncedSearch, action, success, dateFrom, dateTo]);
 
   const todayCount = useMemo(() => {
     const today = new Date().toDateString();
@@ -76,7 +92,18 @@ export default function AuditLog() {
 
   const exportCSV = () => {
     if (!logs.length) return;
-    const headers = ["id", "created_at", "user_email", "action", "description"];
+    const headers = [
+      "id",
+      "created_at",
+      "actor_email",
+      "actor_user_id",
+      "actor_role",
+      "action",
+      "entity_type",
+      "entity_id",
+      "success",
+      "description",
+    ];
     const rows = logs.map((l) =>
       headers
         .map((h) => {
@@ -109,6 +136,23 @@ export default function AuditLog() {
     URL.revokeObjectURL(url);
   };
 
+  const generateSample = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await api.post("/api/admin/audit-logs/dev-generate");
+      await fetchLogs(1, pageSize);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to generate sample audit event.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatTimestamp = (ts) => {
     if (!ts) return "-";
     try {
@@ -117,6 +161,30 @@ export default function AuditLog() {
     } catch {
       return ts;
     }
+  };
+
+  const formatActor = (entry) => {
+    const role = entry.actor_role || entry?.meta?.actor_role;
+    const base = entry.actor_email || (entry.actor_user_id ? `#${entry.actor_user_id}` : "-");
+    return role ? `${base} (${role})` : base;
+  };
+
+  const formatEntity = (entry) => {
+    const entityType = entry.entity_type || entry?.meta?.entity_type;
+    const entityId = entry.entity_id || entry?.meta?.entity_id;
+    if (!entityType && !entityId) return "-";
+    return `${entityType || "entity"}${entityId ? `:${entityId}` : ""}`;
+  };
+
+  const isSuccess = (entry) => {
+    if (typeof entry.success === "boolean") return entry.success;
+    if (typeof entry?.meta?.success === "boolean") return entry.meta.success;
+    return null;
+  };
+
+  const formatMeta = (entry) => {
+    const meta = entry.meta || {};
+    return JSON.stringify(meta, null, 2);
   };
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -152,7 +220,7 @@ export default function AuditLog() {
               <input
                 type="text"
                 className="audit-search-input"
-                placeholder="Search by user email..."
+                placeholder="Search description or meta..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -194,6 +262,45 @@ export default function AuditLog() {
             <div className="audit-filter-wrapper">
               <select
                 className="audit-filter-select bg-slate-800 text-slate-100 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                value={success}
+                onChange={(e) => setSuccess(e.target.value)}
+              >
+                {SUCCESS_OPTIONS.map((opt) => (
+                  <option
+                    key={opt}
+                    value={opt}
+                    className="bg-slate-800 text-slate-100"
+                    style={{ backgroundColor: "#0f172a", color: "#e2e8f0" }}
+                  >
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="audit-filter-wrapper audit-date-wrapper">
+              <label className="audit-date-label">From</label>
+              <input
+                type="date"
+                className="audit-date-input"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+
+            <div className="audit-filter-wrapper audit-date-wrapper">
+              <label className="audit-date-label">To</label>
+              <input
+                type="date"
+                className="audit-date-input"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+
+            <div className="audit-filter-wrapper">
+              <select
+                className="audit-filter-select bg-slate-800 text-slate-100 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 value={pageSize}
                 onChange={(e) => {
                   const next = Number(e.target.value);
@@ -214,6 +321,16 @@ export default function AuditLog() {
                 ))}
               </select>
             </div>
+
+            <div className="audit-filter-wrapper audit-dev-wrapper">
+              <button
+                type="button"
+                className="btn btn-secondary audit-dev-btn"
+                onClick={generateSample}
+              >
+                Generate sample audit event
+              </button>
+            </div>
           </div>
 
           <div className="audit-summary-grid">
@@ -228,7 +345,9 @@ export default function AuditLog() {
             <div className="audit-summary-card">
               <div className="summary-label">Unique Users</div>
               <div className="summary-value">
-                {loading ? "..." : new Set(logs.map((l) => l.user_email || "-")).size}
+                {loading
+                  ? "..."
+                  : new Set(logs.map((l) => l.actor_email || l.actor_user_id || "-")).size}
               </div>
             </div>
             <div className="audit-summary-card">
@@ -270,52 +389,105 @@ export default function AuditLog() {
               <thead>
                 <tr>
                   <th>Timestamp</th>
-                  <th>User</th>
+                  <th>Actor</th>
                   <th>Action</th>
+                  <th>Entity</th>
+                  <th>Status</th>
                   <th>Description</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan="4" className="audit-skeleton-row">
+                    <td colSpan="7" className="audit-skeleton-row">
                       Loading...
                     </td>
                   </tr>
                 )}
                 {!loading &&
-                  logs.map((entry) => (
-                    <tr key={entry.id}>
-                      <td>
-                        <div className="audit-timestamp">
-                          <span className="timestamp-icon">#</span>
-                          <div className="timestamp-details">
-                            <span className="timestamp-date">
-                              {formatTimestamp(entry.created_at)}
+                  logs.map((entry) => {
+                    const successValue = isSuccess(entry);
+                    const expandedNow = expanded.has(entry.id);
+                    return (
+                      <Fragment key={entry.id}>
+                        <tr>
+                          <td>
+                            <div className="audit-timestamp">
+                              <span className="timestamp-icon">#</span>
+                              <div className="timestamp-details">
+                                <span className="timestamp-date">
+                                  {formatTimestamp(entry.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="audit-user">
+                              <span className="user-icon">@</span>
+                              <span>{formatActor(entry)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`audit-action-badge action-${(entry.action || "")
+                                .toLowerCase()
+                                .replaceAll("_", "-")}`}
+                            >
+                              {entry.action}
                             </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="audit-user">
-                          <span className="user-icon">@</span>
-                          <span>{entry.user_email || "-"}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`audit-action-badge action-${(entry.action || "")
-                            .toLowerCase()
-                            .replace("_", "-")}`}
-                        >
-                          {entry.action}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="audit-description">{entry.description}</span>
-                      </td>
-                    </tr>
-                  ))}
+                          </td>
+                          <td>
+                            <span className="audit-entity">{formatEntity(entry)}</span>
+                          </td>
+                          <td>
+                            <span
+                              className={`audit-status-badge ${
+                                successValue === true
+                                  ? "status-success"
+                                  : successValue === false
+                                  ? "status-failure"
+                                  : "status-unknown"
+                              }`}
+                            >
+                              {successValue === true
+                                ? "Success"
+                                : successValue === false
+                                ? "Failure"
+                                : "Unknown"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="audit-description">{entry.description}</span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-secondary audit-details-btn"
+                              onClick={() => {
+                                const next = new Set(expanded);
+                                if (next.has(entry.id)) {
+                                  next.delete(entry.id);
+                                } else {
+                                  next.add(entry.id);
+                                }
+                                setExpanded(next);
+                              }}
+                            >
+                              {expandedNow ? "Hide" : "View"}
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedNow && (
+                          <tr className="audit-details-row">
+                            <td colSpan="7">
+                              <pre className="audit-details-pre">{formatMeta(entry)}</pre>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
               </tbody>
             </table>
 

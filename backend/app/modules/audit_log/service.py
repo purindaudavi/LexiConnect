@@ -10,7 +10,9 @@ from .models import AuditLog
 def log_event(
     db: Session,
     *,
-    actor: Optional[User],
+    actor: Optional[User] = None,
+    user: Optional[User] = None,
+    actor_role: Optional[str] = None,
     action: str,
     description: str,
     meta: Optional[Any] = None,
@@ -21,6 +23,9 @@ def log_event(
     target_user_id: Optional[int] = None,
     commit: bool = True,
 ) -> AuditLog:
+    if actor is None and user is not None:
+        actor = user
+
     if isinstance(meta, dict):
         meta_dict = dict(meta)
     elif meta is None:
@@ -35,6 +40,7 @@ def log_event(
             "success": success,
             "ip_address": request.client.host if request and request.client else None,
             "user_agent": request.headers.get("user-agent") if request else None,
+            "actor_role": actor_role,
         }
     )
 
