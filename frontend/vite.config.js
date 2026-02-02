@@ -3,6 +3,12 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+
+  // ✅ prevents "useContext null" + duplicated React issues (Recharts/ResponsiveContainer)
+  resolve: {
+    dedupe: ["react", "react-dom"],
+  },
+
   server: {
     proxy: {
       "/api": {

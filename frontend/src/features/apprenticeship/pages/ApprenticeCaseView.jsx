@@ -151,6 +151,11 @@ export default function ApprenticeCaseView() {
     (items || []).map((m) => `${m.kind}:${m.id}:${m.createdAt}`).join("|");
   const lastSigRef = useRef("");
 
+  const CARD_BASE =
+    "bg-slate-900/50 border border-slate-700/60 rounded-2xl p-6 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]";
+  const CARD_INSET =
+    "bg-slate-950/40 border border-slate-800/60 rounded-xl p-4";
+
   // ✅ mark read ONLY when latestTs changes
   const markCaseRead = useCallback(
     (latestTs) => {
@@ -456,7 +461,11 @@ export default function ApprenticeCaseView() {
   // ---------------------------------------
   if (loadingCase) {
     return (
-      <div className="text-slate-300 py-12 text-center">Loading case...</div>
+      <div className="max-w-6xl mx-auto">
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 py-10 text-center text-slate-300">
+          Loading case...
+        </div>
+      </div>
     );
   }
 
@@ -466,7 +475,9 @@ export default function ApprenticeCaseView() {
         <Link to="/apprentice/dashboard" className="text-amber-300 hover:underline">
           ← Back to Dashboard
         </Link>
-        <div className="text-red-300">Case not found.</div>
+        <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          Case not found.
+        </div>
       </div>
     );
   }
@@ -482,13 +493,79 @@ export default function ApprenticeCaseView() {
       </Link>
 
       {/* Case Title */}
-      <div>
-        <h1 className="text-4xl font-bold text-white mb-2">{caseData.title}</h1>
-        <p className="text-slate-400">Case ID: {caseData.caseId}</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+            {caseData.title}
+          </h1>
+          <div className="flex items-center gap-3 text-slate-400">
+            <span>Case ID: {caseData.caseId}</span>
+            <span className="text-slate-600">•</span>
+            <span>{caseData.category}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+              caseData.status === "active" ||
+              (!caseData.status.includes("closed") &&
+                !caseData.status.includes("completed"))
+                ? "bg-amber-500/15 text-amber-200 border border-amber-500/30"
+                : "bg-slate-700/40 text-slate-300 border border-slate-600/60"
+            }`}
+          >
+            {caseData.status === "active" ||
+            (!caseData.status.includes("closed") &&
+              !caseData.status.includes("completed"))
+              ? "Active"
+              : "Closed"}
+          </span>
+          <button
+            onClick={() => loadChat(false)}
+            className="px-3 py-2 rounded-lg bg-slate-900/40 border border-slate-700/60 text-slate-200 text-sm hover:bg-slate-800/50"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Case Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]">
+          <div className="text-xs text-slate-400 mb-1">Documents</div>
+          <div className="text-2xl font-semibold text-white">
+            {loadingDocs ? "—" : documents.length}
+          </div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]">
+          <div className="text-xs text-slate-400 mb-1">Reviews Linked</div>
+          <div className="text-2xl font-semibold text-white">
+            {loadingDocs
+              ? "—"
+              : documents.filter((d) => (reviewForm?.[d.id]?.review_link || "").trim())
+                  .length}
+          </div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]">
+          <div className="text-xs text-slate-400 mb-1">Messages</div>
+          <div className="text-2xl font-semibold text-white">
+            {loadingChat ? "—" : messages.length}
+          </div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 shadow-[0_0_0_1px_rgba(15,23,42,0.35)]">
+          <div className="text-xs text-slate-400 mb-1">Last Update</div>
+          <div className="text-2xl font-semibold text-white">
+            {loadingChat
+              ? "—"
+              : messages.length
+              ? formatDate(messages[messages.length - 1].createdAt)
+              : "—"}
+          </div>
+        </div>
       </div>
 
       {/* Case Summary */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <h2 className="text-xl font-semibold text-white mb-4">Case Summary</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
@@ -502,8 +579,8 @@ export default function ApprenticeCaseView() {
                 caseData.status === "active" ||
                 (!caseData.status.includes("closed") &&
                   !caseData.status.includes("completed"))
-                  ? "bg-green-500/20 text-green-300 border border-green-500/30"
-                  : "bg-gray-500/20 text-gray-300 border border-gray-500/30"
+                  ? "bg-amber-500/15 text-amber-200 border border-amber-500/30"
+                  : "bg-slate-700/40 text-slate-300 border border-slate-600/60"
               }`}
             >
               {caseData.status === "active" ||
@@ -533,11 +610,13 @@ export default function ApprenticeCaseView() {
       </div>
 
       {/* Case Documents */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <h2 className="text-xl font-semibold text-white mb-4">Case Documents</h2>
 
         {loadingDocs && (
-          <div className="text-slate-300 py-4">Loading documents...</div>
+          <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 py-6 text-center text-slate-300">
+            Loading documents...
+          </div>
         )}
 
         {!loadingDocs && docsError && (
@@ -547,7 +626,9 @@ export default function ApprenticeCaseView() {
         )}
 
         {!loadingDocs && !docsError && documents.length === 0 && (
-          <div className="text-slate-400 py-2">No documents uploaded yet.</div>
+          <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 py-6 text-center text-slate-300">
+            No documents uploaded yet.
+          </div>
         )}
 
         {!loadingDocs && !docsError && documents.length > 0 && (
@@ -569,11 +650,11 @@ export default function ApprenticeCaseView() {
               return (
                 <div
                   key={doc.id}
-                  className="p-4 bg-slate-950/30 border border-slate-700/60 rounded-lg"
+                  className="p-4 bg-slate-950/40 border border-slate-700/60 rounded-xl shadow-[0_0_0_1px_rgba(15,23,42,0.3)]"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="text-blue-400 text-2xl">📄</div>
+                      <div className="text-amber-300 text-2xl">📄</div>
                       <div>
                         <div className="text-white font-medium">
                           {doc.title || `Document #${doc.id}`}
@@ -590,7 +671,7 @@ export default function ApprenticeCaseView() {
                         disabled={!viewUrl}
                         className={`p-2 rounded ${
                           viewUrl
-                            ? "hover:bg-slate-800 text-slate-200"
+                            ? "hover:bg-slate-800/60 text-slate-200"
                             : "text-slate-500 cursor-not-allowed"
                         }`}
                         title="View"
@@ -601,7 +682,7 @@ export default function ApprenticeCaseView() {
                       <button
                         type="button"
                         onClick={() => handleDownload(doc)}
-                        className="p-2 rounded hover:bg-slate-800 text-slate-200"
+                        className="p-2 rounded hover:bg-slate-800/60 text-slate-200"
                         title="Download"
                       >
                         ⬇️
@@ -636,7 +717,7 @@ export default function ApprenticeCaseView() {
                         }))
                       }
                       placeholder="https://..."
-                      className="w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70"
+                      className="w-full rounded-lg bg-slate-950/40 border border-slate-700/60 px-3 py-2 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30"
                     />
 
                     <textarea
@@ -653,21 +734,21 @@ export default function ApprenticeCaseView() {
                         }))
                       }
                       placeholder="What changed? (optional note for lawyer)"
-                      className="mt-2 w-full min-h-[70px] rounded-lg bg-slate-950/30 border border-slate-700/60 p-3 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 resize-none"
+                      className="mt-2 w-full min-h-[70px] rounded-lg bg-slate-950/40 border border-slate-700/60 p-3 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30 resize-none"
                     />
 
                     <div className="mt-2 flex items-center justify-between">
                       <div className="text-xs">
                         {form.error && <span className="text-rose-300">{form.error}</span>}
                         {!form.error && form.success && (
-                          <span className="text-green-300">{form.success}</span>
+                          <span className="text-amber-200">{form.success}</span>
                         )}
                       </div>
 
                       <button
                         onClick={() => saveReviewLink(doc.id)}
                         disabled={form.saving || !(form.review_link || "").trim()}
-                        className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-sm font-medium shadow-[0_8px_20px_rgba(245,158,11,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {form.saving ? "Saving..." : "Save Link"}
                       </button>
@@ -681,7 +762,7 @@ export default function ApprenticeCaseView() {
       </div>
 
       {/* Conversation */}
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-6">
+      <div className={CARD_BASE}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">Conversation</h2>
           <span className="text-slate-400 text-sm">
@@ -695,7 +776,7 @@ export default function ApprenticeCaseView() {
           </div>
         )}
 
-        <div className="h-[420px] overflow-y-auto space-y-3 pr-2">
+        <div className={`${CARD_INSET} h-[420px] overflow-y-auto space-y-3 pr-2`}>
           {loadingChat && <div className="text-slate-300">Loading messages…</div>}
 
           {!loadingChat && messages.length === 0 && (
@@ -710,7 +791,7 @@ export default function ApprenticeCaseView() {
             if (m.kind === "review") {
               return (
                 <div key={m.id} className="flex justify-center">
-                  <div className="relative group w-full md:w-[85%] rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                  <div className="relative group w-full md:w-[85%] rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 shadow-[0_0_0_1px_rgba(245,158,11,0.1)]">
                     <button
                       type="button"
                       onClick={() =>
@@ -764,7 +845,7 @@ export default function ApprenticeCaseView() {
                   className={`${bubbleBase} ${
                     isYou
                       ? "bg-amber-500/10 border-amber-500/30 text-slate-100"
-                      : "bg-slate-950/30 border-slate-700/60 text-slate-200"
+                      : "bg-slate-950/40 border-slate-700/60 text-slate-200"
                   }`}
                 >
                   <button
@@ -802,7 +883,7 @@ export default function ApprenticeCaseView() {
         {/* Reply Box */}
         <div className="mt-4 border-t border-slate-700/60 pt-4">
           {replyTo && (
-            <div className="mb-2 rounded-lg border-l-4 border-amber-400 bg-slate-900/60 p-3 text-sm text-slate-200">
+            <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-slate-200">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-xs text-amber-300 font-semibold">
                   Replying to {replyTo.authorRole} • {replyTo.authorName}
@@ -826,14 +907,14 @@ export default function ApprenticeCaseView() {
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             placeholder="Type a message…"
-            className="w-full min-h-[90px] rounded-lg bg-slate-950/30 border border-slate-700/60 p-3 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 resize-none"
+            className="w-full min-h-[90px] rounded-lg bg-slate-950/40 border border-slate-700/60 p-3 text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-1 focus:ring-amber-400/30 resize-none"
             disabled={sending}
           />
           <div className="mt-2 flex justify-end">
             <button
               onClick={sendReply}
               disabled={sending || !reply.trim()}
-              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-medium shadow-[0_8px_20px_rgba(245,158,11,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sending ? "Sending…" : "Send"}
             </button>
