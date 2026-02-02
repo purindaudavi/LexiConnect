@@ -70,6 +70,9 @@ import ApprenticeLayout from "../layouts/ApprenticeLayout";
 import ApprenticeCases from "../features/apprenticeship/pages/ApprenticeCases";
 import ApprenticeProfile from "../features/apprenticeship/pages/ApprenticeProfile";
 import ApprenticeAssignedCases from "../features/apprenticeship/pages/ApprenticeAssignedCases";
+import LawyerApprenticeshipNotes from
+  "../features/apprenticeship/pages/LawyerApprenticeshipNotes";
+
 // Admin pages (real)
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import KYCApproval from "../pages/admin/KYCApproval";
@@ -234,6 +237,9 @@ const AppRoutes = () => {
         <Route path="/lawyer/bookings/:bookingId/documents" element={<LawyerDocumentsView />} />
         <Route path="/lawyer/bookings/:bookingId/documents/upload" element={<DocumentUpload />} />
         <Route path="/lawyer/bookings/:bookingId/intake" element={<LawyerIntakeViewPage />} />
+
+        <Route path="/lawyer/apprenticeship/notes" element={<LawyerApprenticeshipNotes />} />
+
 
         <Route path="/lawyer/cases/feed" element={<LawyerCaseFeedPage />} />
         <Route path="/lawyer/cases/requests" element={<LawyerMyRequestsPage />} />

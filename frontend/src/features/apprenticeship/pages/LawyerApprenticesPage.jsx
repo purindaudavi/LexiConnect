@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   assignApprenticeToCase,
-  fetchCaseNotesForLawyer,
   fetchApprenticeChoices,
   fetchCaseChoices,
 } from "../api/apprenticeshipApi";
 
 export default function LawyerApprenticesPage() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const initialTab = useMemo(() => {
     const t = location?.state?.tab;
@@ -33,12 +33,6 @@ export default function LawyerApprenticesPage() {
   const [assignLoading, setAssignLoading] = useState(false);
   const [ok, setOk] = useState("");
   const [err, setErr] = useState("");
-
-  // Notes viewer
-  const [notesCaseId, setNotesCaseId] = useState("");
-  const [notesLoading, setNotesLoading] = useState(false);
-  const [notesErr, setNotesErr] = useState("");
-  const [notes, setNotes] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -76,12 +70,6 @@ export default function LawyerApprenticesPage() {
     return `${title}${district}${category}${status}`;
   };
 
-  const selectedCaseForNotes = useMemo(() => {
-    const idNum = Number(notesCaseId);
-    if (!Number.isFinite(idNum)) return null;
-    return cases.find((c) => Number(c.id) === idNum) || null;
-  }, [notesCaseId, cases]);
-
   const handleAssign = async () => {
     setOk("");
     setErr("");
@@ -99,23 +87,6 @@ export default function LawyerApprenticesPage() {
       setErr(e?.response?.data?.detail || "Failed to assign apprentice.");
     } finally {
       setAssignLoading(false);
-    }
-  };
-
-  const handleLoadNotes = async () => {
-    if (!notesCaseId) return;
-
-    setNotesErr("");
-    setNotes([]);
-    setNotesLoading(true);
-
-    try {
-      const data = await fetchCaseNotesForLawyer(Number(notesCaseId));
-      setNotes(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setNotesErr(e?.response?.data?.detail || "Failed to load notes.");
-    } finally {
-      setNotesLoading(false);
     }
   };
 
@@ -140,6 +111,7 @@ export default function LawyerApprenticesPage() {
           >
             Assign
           </button>
+
           <button
             onClick={() => setTab("notes")}
             className={[
@@ -179,7 +151,9 @@ export default function LawyerApprenticesPage() {
                 disabled={choicesLoading}
               >
                 <option value="">
-                  {choicesLoading ? "Loading apprentices..." : "Select an apprentice"}
+                  {choicesLoading
+                    ? "Loading apprentices..."
+                    : "Select an apprentice"}
                 </option>
                 {apprentices.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -224,7 +198,9 @@ export default function LawyerApprenticesPage() {
           <div className="mt-5 flex gap-3">
             <button
               onClick={handleAssign}
-              disabled={assignLoading || !apprenticeId || !caseId || choicesLoading}
+              disabled={
+                assignLoading || !apprenticeId || !caseId || choicesLoading
+              }
               className="rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
             >
               {assignLoading ? "Assigning..." : "Assign Apprentice"}
@@ -246,89 +222,24 @@ export default function LawyerApprenticesPage() {
         </div>
       )}
 
-      {/* Notes */}
+      {/* Notes -> only Chat View */}
       {tab === "notes" && (
         <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
-          <h2 className="text-xl font-semibold">View notes by Case</h2>
-          <p className="text-slate-300 text-sm mt-1">
-            Notes are visible only to lawyers and apprentices (not clients).
-          </p>
-
-          <div className="mt-4 flex flex-col md:flex-row gap-3">
-            <select
-              className="w-full md:max-w-2xl rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
-              value={notesCaseId}
-              onChange={(e) => setNotesCaseId(e.target.value)}
-              disabled={choicesLoading}
-            >
-              <option value="">
-                {choicesLoading ? "Loading cases..." : "Select a case to view notes"}
-              </option>
-              {cases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {caseLabel(c)}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Apprenticeship Chat</h2>
+              <p className="text-slate-300 text-sm mt-1">
+                Open the full chat view to read and reply to notes & review submissions.
+              </p>
+            </div>
 
             <button
-              onClick={handleLoadNotes}
-              disabled={notesLoading || !notesCaseId || choicesLoading}
-              className="rounded-lg bg-slate-800 border border-slate-700 px-6 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
+              onClick={() => navigate("/lawyer/apprenticeship/notes")}
+              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400"
             >
-              {notesLoading ? "Loading..." : "Load Notes"}
+              Open Chat View
             </button>
           </div>
-
-          {selectedCaseForNotes && (
-            <div className="mt-3 text-slate-300 text-sm">
-              Selected:{" "}
-              <span className="text-white">{selectedCaseForNotes.title}</span>
-              {selectedCaseForNotes.district ? (
-                <>
-                  {" "}
-                  •{" "}
-                  <span className="text-slate-200">
-                    {selectedCaseForNotes.district}
-                  </span>
-                </>
-              ) : null}
-            </div>
-          )}
-
-          {notesErr && (
-            <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {notesErr}
-            </div>
-          )}
-
-          {!notesLoading && !notesErr && notesCaseId && notes.length === 0 && (
-            <div className="mt-4 text-slate-300">No notes found.</div>
-          )}
-
-          {!notesLoading && notes.length > 0 && (
-            <div className="mt-5 space-y-3">
-              {notes.map((n) => {
-                const id = n.id ?? `${n.created_at}-${Math.random()}`;
-                const text = n.text ?? n.note ?? "";
-                const ts = n.created_at ?? n.createdAt ?? "";
-                const apprentice = n.apprentice_id ?? n.apprenticeId ?? null;
-
-                return (
-                  <div
-                    key={id}
-                    className="rounded-xl border border-slate-700/60 bg-slate-950/30 p-4"
-                  >
-                    <div className="text-slate-200">{text}</div>
-                    <div className="text-slate-500 text-xs mt-2">
-                      {ts ? ts : ""}
-                      {apprentice ? ` Apprentice #${apprentice}` : ""}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>

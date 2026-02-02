@@ -33,3 +33,22 @@ class DocumentOut(BaseModel):
     latest_comment: Optional[DocumentCommentOut] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class DocumentReviewLinkCreate(BaseModel):
+    review_link: str
+    note: Optional[str] = None
+
+
+class DocumentReviewLinkOut(BaseModel):
+    id: int
+    document_id: int
+    apprentice_id: int
+    review_link: str
+    note: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -46,6 +46,12 @@ class ApprenticeNoteOut(BaseModel):
     note: str
     created_at: datetime
 
+    # ✅ NEW (for chat UI)
+    author_id: Optional[int] = None
+    author_role: Optional[str] = None
+    author_name: Optional[str] = None
+
+
 
 class ApprenticeChoiceOut(BaseModel):
     id: int
