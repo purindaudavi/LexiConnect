@@ -1,31 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { fetchMyApprenticeCases } from "../api/apprenticeshipApi";
-
-const normalizeCase = (c) => {
-  const caseId = c.case_id ?? c.caseId ?? c.caseId ?? c.id;
-
-  return {
-    caseId,
-    title: c.case_title ?? c.title ?? c.subject ?? `Case #${caseId}`,
-    category: c.case_category ?? c.category ?? "—",
-
-    // works with your backend fields + extra compatibility
-    supervisingLawyer:
-      c.supervising_lawyer ??
-      c.lawyer_full_name ??
-      c.lawyer_name ??
-      c.lawyer ??
-      "—",
-
-    // your backend returns case_status like "open"
-    status: String(c.case_status ?? c.status ?? "active").toLowerCase(),
-
-    district: c.district ?? "—",
-
-    assignedDate: c.created_at ?? c.assigned_date ?? c.assignedAt ?? "—",
-  };
-};
+import { Link } from "react-router-dom";
 
 export default function ApprenticeAssignedCases() {
   const navigate = useNavigate();

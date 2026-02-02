@@ -19,11 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'apprentice';")
+    pass
 
 
 def downgrade() -> None:
-    raise NotImplementedError("Downgrade not supported for adding a Postgres enum value.")
+    pass
 
 
 

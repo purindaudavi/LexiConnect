@@ -260,15 +260,14 @@ def list_case_documents(
         raise HTTPException(status_code=403, detail="Not allowed")
 
     docs = get_documents_by_case(db, case_id)
-    _attach_comment_meta(db, docs)
-    return _attach_file_urls(docs)
+    return _attach_comment_meta(db, docs)
 
 
 @router.post("/by-case/{case_id}", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)
 def upload_case_document(
     case_id: int,
-    title: str = Form(...),
     file_name: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -299,7 +298,6 @@ def upload_case_document(
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {e}")
 
     _attach_comment_meta(db, [doc])
-    _attach_file_urls([doc])
     return doc
 
 
@@ -388,7 +386,6 @@ def get_document_by_id(
     _ensure_can_access_booking_docs(current_user, booking)
 
     _attach_comment_meta(db, [doc])
-    _attach_file_urls([doc])
     return doc
 
 

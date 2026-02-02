@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createCase, getMyCases, getSpecializations } from "../services/cases.service";
 
@@ -8,7 +8,6 @@ export default function ClientCasesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
   const [districtFilter, setDistrictFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState("Newest");
 
@@ -104,38 +103,35 @@ export default function ClientCasesPage() {
   };
 
   const formattedDate = (value) => {
-    if (!value) return "-";
+    if (!value) return "—";
     try {
       return new Intl.DateTimeFormat(undefined, {
         dateStyle: "medium",
+        timeStyle: "short",
       }).format(new Date(value));
     } catch {
       return value;
     }
   };
 
-  const uniqueDistricts = useMemo(
-    () => ["All", ...Array.from(new Set(cases.map((c) => c.district).filter(Boolean)))],
-    [cases]
-  );
-
-  const stats = useMemo(() => {
+  const stats = (() => {
     const total = cases.length;
-    const open = cases.filter((c) => (c.status || "open").toLowerCase() !== "closed").length || 0;
-    const latest = [...cases]
-      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0]?.title;
-    const districts = new Set(cases.map((c) => (c.district || "").trim()).filter(Boolean)).size || 0;
+    const open = cases.filter((c) => (c.status || "open").toLowerCase() !== "closed").length || total;
+    const latest = cases[0]?.title || "—";
+    const districts = new Set(cases.map((c) => (c.district || "").trim()).filter(Boolean)).size || "—";
     return [
-      { label: "Total Cases", value: total || "-" },
-      { label: "Open Cases", value: open || "-" },
-      { label: "Latest Case", value: latest || "-" },
-      { label: "Districts", value: districts || "-" },
+      { label: "Total Cases", value: total || "—" },
+      { label: "Open Cases", value: open || "—" },
+      { label: "Latest Case", value: latest },
+      { label: "Districts", value: districts },
     ];
-  }, [cases]);
+  })();
 
-  const filteredCases = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const normalized = cases.filter((c) => {
+  const uniqueDistricts = ["All", ...Array.from(new Set(cases.map((c) => c.district).filter(Boolean)))];
+
+  const filteredCases = cases
+    .filter((c) => {
+      const q = search.trim().toLowerCase();
       const matchesSearch =
         !q ||
         (c.title || "").toLowerCase().includes(q) ||
@@ -150,21 +146,10 @@ export default function ClientCasesPage() {
       return matchesSearch && matchesStatus && matchesDistrict;
     });
 
-    const sorted = [...normalized];
-    if (sortOrder === "Newest") {
-      sorted.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    } else if (sortOrder === "Oldest") {
-      sorted.sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-    } else {
-      sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-    }
-    return sorted;
-  }, [cases, search, statusFilter, districtFilter, sortOrder]);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
-        <section className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 md:p-8 shadow-lg shadow-slate-900/30 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2">
             <p className="text-sm uppercase tracking-[0.2em] text-amber-300">Cases</p>
             <h1 className="text-3xl font-bold text-white">My Cases</h1>
@@ -173,6 +158,12 @@ export default function ClientCasesPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold shadow-md shadow-amber-500/25 transition-colors"
+            >
+              Post Legal Issue
+            </button>
             <button
               onClick={() => navigate("/client/search")}
               className="px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-white font-semibold transition-colors"
@@ -186,16 +177,16 @@ export default function ClientCasesPage() {
           {stats.map((s) => (
             <div
               key={s.label}
-              className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 shadow-sm shadow-slate-900/30"
+              className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 shadow-sm shadow-slate-900/30"
             >
               <div className="text-xs uppercase text-slate-400 tracking-wide">{s.label}</div>
-              <div className="text-2xl font-semibold text-white mt-1 truncate">{s.value}</div>
+              <div className="text-2xl font-bold text-white mt-1">{s.value}</div>
             </div>
           ))}
         </section>
 
-        <section className="border border-slate-800 rounded-2xl bg-slate-900/60 p-4 md:p-5 shadow-lg shadow-slate-900/30 space-y-4">
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+        <section className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 md:p-6 shadow-lg shadow-slate-900/30 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div className="flex flex-1 gap-3 flex-wrap">
               <input
                 value={search}
@@ -203,17 +194,6 @@ export default function ClientCasesPage() {
                 placeholder="Search by title, specialization, or district"
                 className="flex-1 min-w-[220px] px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {["All", "Open", "Pending", "Confirmed", "Closed"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
               <select
                 value={districtFilter}
                 onChange={(e) => setDistrictFilter(e.target.value)}
@@ -230,7 +210,7 @@ export default function ClientCasesPage() {
                 onChange={(e) => setSortOrder(e.target.value)}
                 className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
-                {["Newest", "Oldest", "A-Z"].map((s) => (
+                {["Newest", "Oldest", "A–Z"].map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -240,7 +220,7 @@ export default function ClientCasesPage() {
             <div className="flex gap-2">
               <button
                 onClick={() => setShowForm((v) => !v)}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-semibold"
+                className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold"
               >
                 {showForm ? "Close Form" : "Create Case"}
               </button>
@@ -251,7 +231,7 @@ export default function ClientCasesPage() {
         {showForm && (
           <form
             onSubmit={handleSubmit}
-            className="border border-slate-800 rounded-2xl bg-slate-900/70 p-4 md:p-6 space-y-4 shadow-lg shadow-slate-900/30"
+            className="border border-slate-800 rounded-2xl bg-slate-900/80 p-4 md:p-6 space-y-4 shadow-lg shadow-slate-900/30"
           >
             <div className="grid md:grid-cols-2 gap-3">
               <div>
@@ -346,7 +326,7 @@ export default function ClientCasesPage() {
             {[1, 2, 3, 4].map((k) => (
               <div
                 key={k}
-                className="animate-pulse bg-slate-900/50 border border-slate-800 rounded-2xl h-24"
+                className="animate-pulse bg-slate-900/60 border border-slate-800 rounded-2xl h-28"
               />
             ))}
           </div>
@@ -366,7 +346,7 @@ export default function ClientCasesPage() {
               onClick={() => setShowForm(true)}
               className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold transition-colors"
             >
-              Create a Case
+              Post your first legal issue
             </button>
           </div>
         )}
@@ -376,10 +356,10 @@ export default function ClientCasesPage() {
             {filteredCases.map((c) => (
               <div
                 key={c.id}
-                className="border border-slate-800 rounded-2xl bg-slate-900/60 p-5 space-y-3 shadow-lg shadow-slate-900/30 hover:border-slate-700 transition-colors"
+                className="border border-slate-800 rounded-2xl bg-slate-900/70 p-5 space-y-3 shadow-lg shadow-slate-900/30 hover:border-slate-700 transition-colors animate-fade-in"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="text-lg font-semibold text-white truncate">{c.title}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-lg font-semibold text-white">{c.title}</div>
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/30 text-emerald-200 border border-emerald-700/40">
                     {(c.status || "Open").toString()}
                   </span>
@@ -396,13 +376,13 @@ export default function ClientCasesPage() {
                     </span>
                   )}
                   <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
-                    {c.created_at ? formattedDate(c.created_at) : "-"}
+                    {c.created_at ? formattedDate(c.created_at) : "—"}
                   </span>
                 </div>
-                <div className="text-sm text-slate-300 line-clamp-2">
+                <div className="text-sm text-slate-300">
                   {c.summary_public || c.summary || "No summary provided yet."}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end">
                   <button
                     type="button"
                     onClick={() => navigate(`/client/cases/${c.id}`)}

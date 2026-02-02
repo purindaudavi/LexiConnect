@@ -98,10 +98,8 @@ def get_my_assigned_cases(db: Session, current_user):
             detail="Only apprentices can access this endpoint",
         )
 
-    rows = (
-        db.query(CaseApprentice, User, Case)
-        .join(User, User.id == CaseApprentice.lawyer_id)
-        .join(Case, Case.id == CaseApprentice.case_id)
+    return (
+        db.query(CaseApprentice)
         .filter(CaseApprentice.apprentice_id == current_user.id)
         .order_by(desc(CaseApprentice.created_at))
         .all()

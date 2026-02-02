@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listMyBookingSummaries, cancelBooking } from "../services/bookings";
 
@@ -7,14 +7,9 @@ const ManageBookings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionId, setActionId] = useState(null);
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState("Newest");
-  const [dateFilter, setDateFilter] = useState("All");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [serviceFilter, setServiceFilter] = useState("All");
-  const [lawyerQuery, setLawyerQuery] = useState("");
-  const [caseQuery, setCaseQuery] = useState("");
   const navigate = useNavigate();
 
   const fetchBookings = async () => {
@@ -70,10 +65,6 @@ const ManageBookings = () => {
       label: "Confirmed",
       badge: "bg-emerald-900/30 text-emerald-200 border border-emerald-700/40",
     },
-    rejected: {
-      label: "Rejected",
-      badge: "bg-rose-900/30 text-rose-200 border border-rose-700/40",
-    },
     completed: {
       label: "Completed",
       badge: "bg-sky-900/30 text-sky-200 border border-sky-700/40",
@@ -97,114 +88,27 @@ const ManageBookings = () => {
     }
   };
 
-  const serviceOptions = useMemo(() => {
-    const set = new Set();
-    bookings.forEach((b) => {
-      if (b.service_name) set.add(b.service_name);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [bookings]);
-
-  const filtered = useMemo(() => {
-    const now = new Date();
-    const qLawyer = lawyerQuery.trim().toLowerCase();
-    const qCase = caseQuery.trim().toLowerCase();
-    const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
-    const toDate = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
-
-    const withinRange = (dt) => {
-      if (!dt) return false;
-      if (fromDate && dt < fromDate) return false;
-      if (toDate && dt > toDate) return false;
-      return true;
-    };
-
-    const filteredList = bookings.filter((b) => {
-      const status = (b.status || "").toLowerCase();
+  const filtered = bookings
+    .filter((b) => {
+      const q = search.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        (b.lawyer_name || "").toLowerCase().includes(q) ||
+        (b.service_name || "").toLowerCase().includes(q) ||
+        (b.case_title || "").toLowerCase().includes(q) ||
+        (b.case_summary || "").toLowerCase().includes(q);
       const matchesStatus =
-        statusFilter === "All" || status === statusFilter.toLowerCase();
-
-      const service = b.service_name || "";
-      const matchesService = serviceFilter === "All" || service === serviceFilter;
-
-      const matchesLawyer =
-        !qLawyer ||
-        (b.lawyer_name || "").toLowerCase().includes(qLawyer) ||
-        (b.lawyer_email || "").toLowerCase().includes(qLawyer);
-
-      const matchesCase =
-        !qCase ||
-        (b.case_title || "").toLowerCase().includes(qCase) ||
-        (b.case_summary || "").toLowerCase().includes(qCase);
-
-      const baseDate = new Date(b.scheduled_at || b.created_at || 0);
-
-      let matchesDate = true;
-      if (dateFilter === "Today") {
-        const start = new Date(now);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(now);
-        end.setHours(23, 59, 59, 999);
-        matchesDate = baseDate >= start && baseDate <= end;
-      } else if (dateFilter === "This Week") {
-        const start = new Date(now);
-        start.setDate(now.getDate() - now.getDay());
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
-        matchesDate = baseDate >= start && baseDate <= end;
-      } else if (dateFilter === "This Month") {
-        const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-        matchesDate = baseDate >= start && baseDate <= end;
-      } else if (dateFilter === "Custom") {
-        matchesDate = withinRange(baseDate);
-      }
-
-      return matchesStatus && matchesService && matchesLawyer && matchesCase && matchesDate;
+        statusFilter === "All" || (b.status || "").toLowerCase() === statusFilter.toLowerCase();
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const aDate = new Date(a.scheduled_at || a.created_at || 0).getTime();
+      const bDate = new Date(b.scheduled_at || b.created_at || 0).getTime();
+      if (sortOrder === "Newest") return bDate - aDate;
+      if (sortOrder === "Oldest") return aDate - bDate;
+      if (sortOrder === "Upcoming") return aDate - bDate;
+      return 0;
     });
-
-    if (sortOrder === "Newest") {
-      return filteredList.sort(
-        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-    }
-    if (sortOrder === "Oldest") {
-      return filteredList.sort(
-        (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
-      );
-    }
-    if (sortOrder === "Upcoming") {
-      const future = [];
-      const past = [];
-      filteredList.forEach((b) => {
-        const dt = new Date(b.scheduled_at || b.created_at || 0);
-        if (dt >= now) future.push(b);
-        else past.push(b);
-      });
-      future.sort(
-        (a, b) => new Date(a.scheduled_at || a.created_at || 0).getTime() -
-          new Date(b.scheduled_at || b.created_at || 0).getTime()
-      );
-      past.sort(
-        (a, b) => new Date(b.scheduled_at || b.created_at || 0).getTime() -
-          new Date(a.scheduled_at || a.created_at || 0).getTime()
-      );
-      return [...future, ...past];
-    }
-    return filteredList;
-  }, [
-    bookings,
-    statusFilter,
-    sortOrder,
-    dateFilter,
-    dateFrom,
-    dateTo,
-    serviceFilter,
-    lawyerQuery,
-    caseQuery,
-  ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
@@ -229,46 +133,17 @@ const ManageBookings = () => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div className="flex flex-1 gap-3 flex-wrap">
               <input
-                value={lawyerQuery}
-                onChange={(e) => setLawyerQuery(e.target.value)}
-                placeholder="Search lawyer name or email"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by lawyer, service, or case"
                 className="flex-1 min-w-[220px] px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-              <input
-                value={caseQuery}
-                onChange={(e) => setCaseQuery(e.target.value)}
-                placeholder="Search case title"
-                className="flex-1 min-w-[200px] px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
-                {["All", "Pending", "Confirmed", "Cancelled", "Rejected"].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={serviceFilter}
-                onChange={(e) => setServiceFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="All">All Services</option>
-                {serviceOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                {["All", "Today", "This Week", "This Month", "Custom"].map((s) => (
+                {["All", "Pending", "Confirmed", "Completed", "Cancelled"].map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -287,28 +162,6 @@ const ManageBookings = () => {
               </select>
             </div>
           </div>
-          {dateFilter === "Custom" && (
-            <div className="flex flex-wrap gap-3">
-              <label className="text-xs uppercase tracking-wide text-slate-400">
-                From
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </label>
-              <label className="text-xs uppercase tracking-wide text-slate-400">
-                To
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </label>
-            </div>
-          )}
         </section>
 
         {error && (

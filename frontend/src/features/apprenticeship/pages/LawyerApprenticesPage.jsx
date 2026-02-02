@@ -182,6 +182,7 @@ export default function LawyerApprenticesPage() {
               </select>
             </label>
           </div>
+        )}
 
           {ok && (
             <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
@@ -219,8 +220,16 @@ export default function LawyerApprenticesPage() {
               Clear
             </button>
           </div>
-        </div>
-      )}
+        )}
+
+        <button
+          onClick={handleAssign}
+          disabled={loading || !apprenticeId || !caseId}
+          className="mt-5 rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
+        >
+          {loading ? "Assigning..." : "Assign Apprentice"}
+        </button>
+      </div>
 
       {/* Notes -> only Chat View */}
       {tab === "notes" && (

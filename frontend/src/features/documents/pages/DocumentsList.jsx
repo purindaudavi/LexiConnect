@@ -9,14 +9,7 @@ import {
 } from "../services/documents.service";
 import { getRole } from "../../../services/auth";
 
-const BACKEND_ORIGIN =
-  import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000";
-
-const resolveFileUrl = (fileUrl) => {
-  if (!fileUrl) return "";
-  if (fileUrl.startsWith("http")) return fileUrl;
-  return `${BACKEND_ORIGIN}${fileUrl}`;
-};
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -75,10 +68,7 @@ export default function DocumentsList() {
     []
   );
 
-  const basePath = location.pathname.startsWith("/lawyer")
-    ? "/lawyer"
-    : "/client";
-
+  const basePath = location.pathname.startsWith("/lawyer") ? "/lawyer" : "/client";
   const canComment = role === "lawyer" || role === "admin";
 
   const load = async () => {
@@ -101,16 +91,13 @@ export default function DocumentsList() {
 
       // keep selection consistent
       if (selectedDoc?.id) {
-        const stillThere = (Array.isArray(data) ? data : []).find(
-          (d) => d.id === selectedDoc.id
-        );
+        const stillThere = data.find((d) => d.id === selectedDoc.id);
         setSelectedDoc(stillThere || null);
       }
     } catch (e) {
       const status = e?.response?.status;
       if (status === 401) setErr("Unauthorized. Please login again.");
-      else if (status === 403)
-        setErr("Not allowed to view documents for this booking.");
+      else if (status === 403) setErr("Not allowed to view documents for this booking.");
       else setErr(e?.response?.data?.detail || "Failed to load documents");
     } finally {
       setLoading(false);
@@ -130,7 +117,7 @@ export default function DocumentsList() {
 
       try {
         const res = await listDocumentComments(selectedDoc.id);
-        setComments(res?.data || []);
+        setComments(res.data || []);
       } catch (e) {
         const status = e?.response?.status;
         if (status === 401) setCommentError("Unauthorized. Please login again.");
@@ -200,8 +187,9 @@ export default function DocumentsList() {
       await createDocumentComment(selectedDoc.id, taggedComment);
       setCommentText("");
 
+      // refresh comments + list (meta badges)
       const res = await listDocumentComments(selectedDoc.id);
-      setComments(res?.data || []);
+      setComments(res.data || []);
       await load();
     } catch (e2) {
       const status = e2?.response?.status;
@@ -214,30 +202,17 @@ export default function DocumentsList() {
   };
 
   const renderDocCard = (doc) => {
-    const fileUrl = resolveFileUrl(
-      doc.file_url || doc.fileUrl || doc.path || doc.url || doc.file_path || ""
-    );
+    const fileUrl = `${API_BASE}${doc.file_path?.startsWith("/") ? "" : "/"}${doc.file_path || ""}`;
 
     const statusKey = doc.latest_comment?.comment_text
       ? getStatusFromComment(doc.latest_comment.comment_text)
       : "new";
-
     const statusLabel =
-      statusKey === "needs_action"
-        ? "Needs action"
-        : statusKey === "reviewed"
-        ? "Reviewed"
-        : "New";
-
+      statusKey === "needs_action" ? "Needs action" : statusKey === "reviewed" ? "Reviewed" : "New";
     const statusClass = statusStyles[statusKey] || statusStyles.new;
     const commentCount = Number(doc.comment_count || 0);
 
-    const uploaderRole = (
-      doc.uploaded_by_role ||
-      doc.latest_comment?.created_by_role ||
-      ""
-    ).toLowerCase();
-
+    const uploaderRole = (doc.uploaded_by_role || doc.latest_comment?.created_by_role || "").toLowerCase();
     const roleLabel = uploaderRole || "unknown";
     const roleClass = roleBadgeStyles[roleLabel] || roleBadgeStyles.unknown;
 
@@ -297,14 +272,7 @@ export default function DocumentsList() {
   };
 
   const selectedFileUrl = selectedDoc
-    ? resolveFileUrl(
-        selectedDoc.file_url ||
-          selectedDoc.fileUrl ||
-          selectedDoc.path ||
-          selectedDoc.url ||
-          selectedDoc.file_path ||
-          ""
-      )
+    ? `${API_BASE}${selectedDoc.file_path?.startsWith("/") ? "" : "/"}${selectedDoc.file_path || ""}`
     : "";
 
   return (
@@ -371,10 +339,7 @@ export default function DocumentsList() {
                       {selectedDoc.title || "Untitled"}
                     </div>
                     <div className="text-xs text-slate-400">
-                      Uploaded{" "}
-                      {formatDateTime(
-                        selectedDoc.uploaded_at || selectedDoc.created_at
-                      )}
+                      Uploaded {formatDateTime(selectedDoc.uploaded_at || selectedDoc.created_at)}
                     </div>
                   </div>
 
@@ -412,49 +377,39 @@ export default function DocumentsList() {
                     )}
 
                     {commentLoading ? (
-                      <div className="text-slate-400 text-sm">
-                        Loading comments...
-                      </div>
+                      <div className="text-slate-400 text-sm">Loading comments...</div>
                     ) : comments.length === 0 ? (
-                      <div className="text-slate-400 text-sm">
-                        No comments yet.
-                      </div>
+                      <div className="text-slate-400 text-sm">No comments yet.</div>
                     ) : (
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                        {comments.map((c) => {
-                          const r = (c.created_by_role || "unknown").toLowerCase();
-                          const badge =
-                            roleBadgeStyles[r] || roleBadgeStyles.unknown;
-                          const statusKey = getStatusFromComment(c.comment_text);
-                          const statusBadge =
-                            statusStyles[statusKey] || statusStyles.new;
+                          {comments.map((c) => {
+                            const r = (c.created_by_role || "unknown").toLowerCase();
+                            const badge = roleBadgeStyles[r] || roleBadgeStyles.unknown;
+                            const statusKey = getStatusFromComment(c.comment_text);
+                            const statusBadge = statusStyles[statusKey] || statusStyles.new;
 
-                          return (
-                            <div
-                              key={c.id}
-                              className="bg-slate-950/60 border border-slate-800 rounded-lg p-3"
-                            >
-                              <div className="text-xs text-slate-400 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full border capitalize ${badge}`}
-                                  >
-                                    {c.created_by_role || "Unknown"}
-                                  </span>
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full border ${statusBadge}`}
-                                  >
-                                    {statusKey.replace("_", " ")}
-                                  </span>
+                            return (
+                              <div
+                                key={c.id}
+                                className="bg-slate-950/60 border border-slate-800 rounded-lg p-3"
+                              >
+                                <div className="text-xs text-slate-400 flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded-full border capitalize ${badge}`}>
+                                      {c.created_by_role || "Unknown"}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full border ${statusBadge}`}>
+                                      {statusKey.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                  <span>{formatDateTime(c.created_at)}</span>
                                 </div>
-                                <span>{formatDateTime(c.created_at)}</span>
+                                <div className="text-sm text-slate-100 mt-2">
+                                  {stripStatusTag(c.comment_text)}
+                                </div>
                               </div>
-                              <div className="text-sm text-slate-100 mt-2">
-                                {stripStatusTag(c.comment_text)}
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
                     )}
 
@@ -494,9 +449,7 @@ export default function DocumentsList() {
                         disabled={deletingId === selectedDoc.id}
                         className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-sm font-semibold disabled:opacity-60"
                       >
-                        {deletingId === selectedDoc.id
-                          ? "Deleting..."
-                          : "Delete"}
+                        {deletingId === selectedDoc.id ? "Deleting..." : "Delete"}
                       </button>
                       <a
                         href={selectedFileUrl}
