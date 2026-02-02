@@ -1,5 +1,6 @@
 // src/layouts/LawyerLayout.jsx
 import { Outlet, useNavigate } from "react-router-dom";
+import { logout as clearAuth } from "../services/auth";
 import TopNavbar from "../components/TopNavbar";
 
 const LawyerLayout = () => {
@@ -23,9 +24,7 @@ const LawyerLayout = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
+    clearAuth();
     localStorage.removeItem("email");
     localStorage.removeItem("user");
 

@@ -67,17 +67,6 @@ def _try_get_user(
         return None
 
 
-def _require_user(
-    token: str = Depends(oauth2_scheme_required),
-    db: Session = Depends(get_db),
-) -> User:
-    try:
-        payload = auth_router._decode_token(token, "access")
-        return auth_router._get_user_from_payload(payload, db)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-
 @router.get("/cases", response_model=List[PublicCaseListItem])
 def get_public_cases(
     q: Optional[str] = Query(None),
@@ -172,12 +161,19 @@ def get_public_case_comments(
 
 
 @router.post("/cases/{case_id}/comments", response_model=CaseCommentNode, status_code=201)
-def create_public_case_comment(
+async def create_public_case_comment(
     case_id: int,
     payload: CaseCommentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(_require_user),
+    token: str = Depends(oauth2_scheme_required),
 ):
+    try:
+        current_user = await auth_router.get_current_user(token=token, db=db)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            logger.warning("public_comments reject 401 endpoint=create case_id=%s", case_id)
+        raise
+    logger.info("public_comments create request case_id=%s user_id=%s", case_id, current_user.id)
     if not case_exists(db, case_id):
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -197,17 +193,29 @@ def create_public_case_comment(
 
     row = get_comment_node(db, comment.id, current_user_id=current_user.id, include_user=False)
     if not row:
+        logger.error(
+            "public_comments create failed to build response case_id=%s comment_id=%s",
+            case_id,
+            comment.id,
+        )
         raise HTTPException(status_code=500, detail="Failed to build comment response")
     return row
 
 
 @router.post("/comments/{comment_id}/vote", response_model=CaseCommentVoteOut)
-def vote_public_comment(
+async def vote_public_comment(
     comment_id: int,
     payload: PublicCommentVoteCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(_require_user),
+    token: str = Depends(oauth2_scheme_required),
 ):
+    try:
+        current_user = await auth_router.get_current_user(token=token, db=db)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            logger.warning("public_comments reject 401 endpoint=vote comment_id=%s", comment_id)
+        raise
+    logger.info("public_comments vote request comment_id=%s user_id=%s", comment_id, current_user.id)
     comment = get_comment(db, comment_id)
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
@@ -215,5 +223,10 @@ def vote_public_comment(
     set_comment_vote(db, comment_id, current_user.id, payload.value)
     summary = get_comment_score_and_vote(db, comment_id, current_user.id)
     if not summary:
+        logger.error(
+            "public_comments vote failed to build summary comment_id=%s user_id=%s",
+            comment_id,
+            current_user.id,
+        )
         raise HTTPException(status_code=404, detail="Comment not found")
     return summary

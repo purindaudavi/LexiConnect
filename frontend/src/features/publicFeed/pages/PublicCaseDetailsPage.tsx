@@ -120,6 +120,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
   const displayName = comment.author_name || comment.author_display_name;
   const upvoteActive = comment.my_vote === 1;
   const downvoteActive = comment.my_vote === -1;
+  const votesDisabled = !loggedIn;
   return (
     <div className={`space-y-3 ${depth > 0 ? "ml-4 border-l border-slate-800 pl-4" : ""}`}>
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -143,47 +144,46 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="mt-3 text-sm text-slate-200">{comment.content}</div>
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
           <span>{comment.score} score</span>
-          {loggedIn ? (
-            <button
-              type="button"
-              onClick={(e) => onReplyClick(comment.id, e)}
-              className="text-amber-200 hover:text-amber-100"
-            >
-              Reply
-            </button>
-          ) : (
-            <span className="text-slate-500">Login to reply</span>
-          )}
           <button
             type="button"
-            disabled={!loggedIn}
+            onClick={(e) => onReplyClick(comment.id, e)}
+            aria-disabled={!loggedIn}
+            className={`text-amber-200 hover:text-amber-100 ${
+              !loggedIn ? "opacity-60 cursor-not-allowed" : ""
+            }`}
+          >
+            Reply
+          </button>
+          <button
+            type="button"
             onClick={(e) =>
               upvoteActive
                 ? onRemoveVote(comment.id, e)
                 : onVote(comment.id, 1, e)
             }
+            aria-disabled={votesDisabled}
             className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition ${
               upvoteActive
                 ? "text-emerald-300 bg-emerald-500/10 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
                 : "text-slate-300 hover:text-white hover:bg-white/5"
-            } ${!loggedIn ? "opacity-60 cursor-not-allowed" : ""}`}
+            } ${votesDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <ThumbsUp className="w-3 h-3" />
             Upvote
           </button>
           <button
             type="button"
-            disabled={!loggedIn}
             onClick={(e) =>
               downvoteActive
                 ? onRemoveVote(comment.id, e)
                 : onVote(comment.id, -1, e)
             }
+            aria-disabled={votesDisabled}
             className={`inline-flex items-center gap-1 rounded-md px-2 py-1 transition ${
               downvoteActive
                 ? "text-rose-300 bg-rose-500/10 ring-1 ring-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.35)]"
                 : "text-slate-300 hover:text-white hover:bg-white/5"
-            } ${!loggedIn ? "opacity-60 cursor-not-allowed" : ""}`}
+            } ${votesDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
           >
             <ThumbsDown className="w-3 h-3" />
             Downvote
@@ -596,40 +596,55 @@ export default function PublicCaseDetailsPage({
               </div>
 
               <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
-                {loggedIn ? (
-                  <>
-                    <textarea
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-200 focus:outline-none"
-                      placeholder="Share your thoughts on this case..."
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={submitNewComment}
-                        disabled={posting}
-                        className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {posting ? "Posting..." : "Post comment"}
-                      </button>
-                      <span className="text-xs text-slate-500">
-                        Minimum 2 characters.
-                      </span>
-                    </div>
-                  </>
-                ) : showAuthModalForGuests ? (
-                  <button
-                    type="button"
-                    onClick={() => handleAuthRequired()}
-                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
-                  >
-                    Login to comment
-                  </button>
-                ) : (
-                  <div className="text-xs text-slate-500">Login required to comment.</div>
-                )}
+                <>
+                  <textarea
+                    value={newCommentText}
+                    onChange={(e) => {
+                      if (!loggedIn) return;
+                      setNewCommentText(e.target.value);
+                    }}
+                    onFocus={() => {
+                      if (!loggedIn) handleAuthRequired();
+                    }}
+                    onClick={() => {
+                      if (!loggedIn) handleAuthRequired();
+                    }}
+                    readOnly={!loggedIn}
+                    rows={3}
+                    className={`w-full rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-sm text-slate-200 focus:outline-none ${
+                      !loggedIn ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
+                    placeholder={
+                      loggedIn
+                        ? "Share your thoughts on this case..."
+                        : "Login to comment on this case..."
+                    }
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!loggedIn) {
+                          handleAuthRequired();
+                          return;
+                        }
+                        submitNewComment();
+                      }}
+                      aria-disabled={!loggedIn || posting}
+                      className={`px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold ${
+                        !loggedIn || posting ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {posting ? "Posting..." : "Post comment"}
+                    </button>
+                    <span className="text-xs text-slate-500">
+                      Minimum 2 characters.
+                    </span>
+                  </div>
+                  {!loggedIn && !showAuthModalForGuests && (
+                    <div className="text-xs text-slate-500">Login required to comment.</div>
+                  )}
+                </>
               </div>
               {actionError && (
                 <div className="text-xs text-red-300">{actionError}</div>

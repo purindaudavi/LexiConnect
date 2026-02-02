@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { LogOut, Scale } from "lucide-react";
-import { getUserFromToken } from "../services/auth";
+import { getUserFromToken, logout as clearAuth } from "../services/auth";
 
 const TopNav = ({ links = [], brand = "LexiConnect" }) => {
   const navigate = useNavigate();
@@ -9,10 +9,8 @@ const TopNav = ({ links = [], brand = "LexiConnect" }) => {
   const email = localStorage.getItem("email") || "User";
 
   const handleLogout = () => {
-    // Clear auth data
-    localStorage.removeItem("access_token");
+    clearAuth();
     localStorage.removeItem("user");
-    localStorage.removeItem("role");
     localStorage.removeItem("email");
 
     // Optional: clear axios default header if you set it globally
