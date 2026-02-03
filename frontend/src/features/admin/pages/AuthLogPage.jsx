@@ -10,6 +10,7 @@ export default function AuthLogPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
   const [reason, setReason] = useState("");
+  const [timeRangeDays, setTimeRangeDays] = useState(7);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -29,9 +30,10 @@ export default function AuthLogPage() {
         page_size: nextPageSize,
       };
       if (debouncedQuery) params.q = debouncedQuery;
-      if (status === "Success") params.success = true;
-      if (status === "Failed") params.success = false;
+      if (status === "Success") params.status = "success";
+      if (status === "Failed") params.status = "failed";
       if (reason) params.reason = reason;
+      if (timeRangeDays > 0) params.days = timeRangeDays;
 
       const data = await listAuthLogs(params);
       const items = data?.items || data?.results || data || [];
@@ -56,7 +58,7 @@ export default function AuthLogPage() {
   useEffect(() => {
     fetchLogs(1, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, status, reason]);
+  }, [debouncedQuery, status, reason, timeRangeDays]);
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -78,7 +80,7 @@ export default function AuthLogPage() {
     return entry?.success ? "Success" : "Failed";
   };
 
-  const userLabel = (entry) => entry?.user || entry?.user_id || "-";
+  const userLabel = (entry) => entry?.user_name || entry?.user || entry?.user_id || "-";
 
   const successCount = useMemo(
     () => logs.filter((l) => l?.success === true).length,
@@ -137,6 +139,25 @@ export default function AuthLogPage() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs uppercase text-slate-400">Time Range</label>
+            <select
+              className="px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white"
+              value={timeRangeDays}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setTimeRangeDays(next);
+                setPage(1);
+                fetchLogs(1, pageSize);
+              }}
+            >
+              <option value={0}>All time</option>
+              <option value={1}>Last 24 hours</option>
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+            </select>
           </div>
 
           <div className="flex flex-col gap-2">

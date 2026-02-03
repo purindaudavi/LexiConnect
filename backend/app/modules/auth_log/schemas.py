@@ -10,8 +10,10 @@ class AuthLogOut(BaseModel):
 
     id: UUID
     occurred_at: datetime
+    created_at: Optional[str] = None
     event_type: str
     user_id: Optional[UUID] = None
+    user_name: Optional[str] = None
     email: Optional[str] = None
     ip: Optional[str] = None
     user_agent: Optional[str] = None
