@@ -57,6 +57,68 @@
   gap: 24px;
 }
 
+.admin-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.admin-chart-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 360px;
+}
+
+.admin-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-chart-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-chart-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.admin-chart-updated {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.admin-chart-loading,
+.admin-chart-empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.admin-chart-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fecaca;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.admin-chart-canvas {
+  position: relative;
+  height: 240px;
+}
+
 .admin-metric-card {
   background: var(--bg-card);
   border-radius: 12px;
@@ -372,4 +434,3 @@
     width: 100%;
   }
 }
-
