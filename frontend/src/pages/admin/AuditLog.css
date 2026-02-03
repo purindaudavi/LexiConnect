@@ -317,15 +317,6 @@
   overflow-x: auto;
 }
 
-.audit-dev-wrapper {
-  min-width: 220px;
-}
-
-.audit-dev-btn {
-  width: 100%;
-  justify-content: center;
-}
-
 .audit-reset-wrapper {
   min-width: 180px;
 }
@@ -339,6 +330,7 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-weight: 600;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 

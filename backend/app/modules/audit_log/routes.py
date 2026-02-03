@@ -54,6 +54,11 @@ def _extract_success_value(log: AuditLog):
     meta_val = (log.meta or {}).get("success")
     if isinstance(meta_val, bool):
         return meta_val
+    if isinstance(meta_val, (int, float)):
+        if meta_val == 1:
+            return True
+        if meta_val == 0:
+            return False
     if isinstance(meta_val, str):
         meta_norm = meta_val.strip().lower()
         if meta_norm in {"success", "succeeded", "ok", "true", "1"}:
@@ -102,43 +107,40 @@ def list_audit_logs(
         if getattr(AuditLog, "status", None) is not None:
             success_conditions.append(
                 func.lower(cast(AuditLog.status, String)).in_(
-                    ["success", "succeeded", "ok", "200", "true"]
+                    ["success", "succeeded", "ok", "200", "true", "1"]
                     if parsed_success
-                    else ["failure", "failed", "error", "false"]
+                    else ["failure", "failed", "error", "false", "0"]
                 )
             )
 
-        dialect = db.bind.dialect.name if db.bind is not None else ""
-        if dialect == "postgresql":
-            target = "true" if parsed_success else "false"
-            success_conditions.append(
-                or_(
-                    AuditLog.meta["success"].astext == target,
-                    func.lower(AuditLog.meta["success"].astext).in_(
-                        [
-                            target,
-                            "success" if parsed_success else "failure",
-                            "ok" if parsed_success else "error",
-                            "1" if parsed_success else "0",
-                            "true" if parsed_success else "false",
-                        ]
-                    ),
-                )
-            )
+        meta_text = cast(AuditLog.meta, String)
+        if parsed_success:
+            meta_needles = [
+                '"success": true',
+                '"success":true',
+                '"success": "true"',
+                '"success":"true"',
+                '"success": "success"',
+                '"success":"success"',
+                '"success": "ok"',
+                '"success":"ok"',
+                '"success": 1',
+                '"success":1',
+            ]
         else:
-            needle_bool = '"success": true' if parsed_success else '"success": false'
-            needle_bool_ns = '"success":true' if parsed_success else '"success":false'
-            needle_str = '"success": "success"' if parsed_success else '"success": "failure"'
-            needle_str_ns = '"success":"success"' if parsed_success else '"success":"failure"'
-            meta_text = cast(AuditLog.meta, String)
-            success_conditions.append(
-                or_(
-                    meta_text.ilike(f"%{needle_bool}%"),
-                    meta_text.ilike(f"%{needle_bool_ns}%"),
-                    meta_text.ilike(f"%{needle_str}%"),
-                    meta_text.ilike(f"%{needle_str_ns}%"),
-                )
-            )
+            meta_needles = [
+                '"success": false',
+                '"success":false',
+                '"success": "false"',
+                '"success":"false"',
+                '"success": "failure"',
+                '"success":"failure"',
+                '"success": "error"',
+                '"success":"error"',
+                '"success": 0',
+                '"success":0',
+            ]
+        success_conditions.append(or_(*[meta_text.ilike(f"%{n}%") for n in meta_needles]))
 
         if success_conditions:
             query = query.filter(or_(*success_conditions))

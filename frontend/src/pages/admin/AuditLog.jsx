@@ -136,23 +136,6 @@ export default function AuditLog() {
     URL.revokeObjectURL(url);
   };
 
-  const generateSample = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await api.post("/api/admin/audit-logs/dev-generate");
-      await fetchLogs(1, pageSize);
-    } catch (err) {
-      const msg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        "Failed to generate sample audit event.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const resetFilters = () => {
     setSearch("");
     setAction("All Actions");
@@ -354,17 +337,6 @@ export default function AuditLog() {
               </button>
             </div>
 
-            {import.meta.env.DEV && (
-              <div className="audit-filter-wrapper audit-dev-wrapper">
-                <button
-                  type="button"
-                  className="btn btn-secondary audit-dev-btn"
-                  onClick={generateSample}
-                >
-                  Generate sample audit event
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="audit-summary-grid">
