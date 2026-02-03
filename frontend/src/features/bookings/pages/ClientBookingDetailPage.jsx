@@ -4,7 +4,7 @@ import {
   getBookingById,
   getLawyerServicePackages,
 } from "../../../services/bookings";
-import { getBookingDocuments } from "../../documents/services/documents.service";
+import { listDocuments } from "../../documents/services/documents.service";
 import { getIntakeByBooking, getIntakeByCase } from "../../intake/services/intake.service";
 import api from "../../../services/api";
 
@@ -162,7 +162,7 @@ export default function ClientBookingDetailPage() {
       try {
         // Docs are case-owned; the booking endpoint resolves case_id and returns the
         // shared case documents so all bookings in the case stay consistent.
-        const res = await getBookingDocuments(booking.id); // safe use numeric id
+        const res = await listDocuments(bookingId); // safe use numeric id
         setDocs(res?.data || res || []);
       } catch (err) {
         setDocError(
