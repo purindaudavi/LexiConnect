@@ -29,6 +29,7 @@ export default function Login() {
       const token = data?.access_token;
       const refresh = data?.refresh_token;
       const tokenType = data?.token_type || "bearer";
+      const mustChangePassword = Boolean(data?.must_change_password);
 
       if (!token) throw new Error("No access_token returned from server");
 
@@ -62,6 +63,12 @@ export default function Login() {
       }
 
       if (role) localStorage.setItem("role", role);
+
+      if (mustChangePassword) {
+        await refreshMe();
+        navigate("/force-reset-password", { replace: true });
+        return;
+      }
 
       // Redirect based on role
       let target = "/dashboard";
@@ -146,6 +153,14 @@ export default function Login() {
                 placeholder="password"
                 required
               />
+            </div>
+            <div className="mt-2 text-right text-xs text-white">
+              <Link
+                to="/forgot-password"
+                className="font-semibold text-amber-400 hover:text-amber-300 hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
           </label>
 

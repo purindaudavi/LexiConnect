@@ -4,6 +4,9 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import LandingPage from "../pages/LandingPage";
 import NotAuthorized from "../pages/NotAuthorized";
+import ForgotPasswordPage from "../features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "../features/auth/pages/ResetPasswordPage";
+import ForceResetPasswordPage from "../features/auth/pages/ForceResetPasswordPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 import AuthLayout from "../layouts/AuthLayout";
@@ -177,6 +180,18 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+      </Route>
+
+      <Route
+        element={
+          <RequireAuth>
+            <AuthLayout />
+          </RequireAuth>
+        }
+      >
+        <Route path="/force-reset-password" element={<ForceResetPasswordPage />} />
       </Route>
 
       {/* Client area */}
