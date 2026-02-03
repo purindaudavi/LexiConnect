@@ -14,29 +14,8 @@ export default function ClientCaseDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const cid = Number(caseId);
 
-  // NOTE: VITE_API_ORIGIN stays as http://127.0.0.1:8000 (no /api)
-  // This is used ONLY for opening uploaded files (/uploads/...)
-  const BACKEND_ORIGIN =
-    import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000";
-
-  const resolveFileUrl = (fileUrl) => {
-    if (!fileUrl) return "";
-    if (fileUrl.startsWith("http")) return fileUrl;
-    // ensure single slash
-    const origin = BACKEND_ORIGIN.replace(/\/+$/, "");
-    const path = String(fileUrl).startsWith("/") ? fileUrl : `/${fileUrl}`;
-    return `${origin}${path}`;
-  };
-
   const [data, setData] = useState(null);
-  const [lawyer, setLawyer] = useState(null);
-  const [bookings, setBookings] = useState([]);
-  const [documents, setDocuments] = useState([]);
-
   const [loading, setLoading] = useState(true);
-  const [docsLoading, setDocsLoading] = useState(true);
-  const [bookingsLoading, setBookingsLoading] = useState(true);
-
   const [error, setError] = useState("");
   const [docsError, setDocsError] = useState("");
   const [bookingsError, setBookingsError] = useState("");
@@ -50,104 +29,21 @@ export default function ClientCaseDetailPage() {
     normalizeTab(searchParams.get("tab"))
   );
 
-  const [uploadFile, setUploadFile] = useState(null);
-  const [uploadName, setUploadName] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState("");
-  const [uploadOk, setUploadOk] = useState("");
-
-  const [bookingFilter, setBookingFilter] = useState("All");
-  const [bookingStatusFilter, setBookingStatusFilter] = useState("All");
-  const [bookingSort, setBookingSort] = useState("Newest");
-
-  const formatDateTime = (value) => {
-    if (!value) return "-";
-    try {
-      return new Intl.DateTimeFormat(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(value));
-    } catch {
-      return String(value);
-    }
-  };
-
-  const formatDate = (value) => {
-    if (!value) return "-";
-    try {
-      return new Intl.DateTimeFormat(undefined, {
-        dateStyle: "medium",
-      }).format(new Date(value));
-    } catch {
-      return String(value);
-    }
-  };
-
-  const loadAll = async () => {
-    if (!Number.isFinite(cid) || cid <= 0) return;
-
-    setLoading(true);
-    setDocsLoading(true);
-    setBookingsLoading(true);
-
-    setError("");
-    setDocsError("");
-    setBookingsError("");
-
-    try {
-      // case + bookings in parallel
-      const [caseRes, bookingRes] = await Promise.all([
-        getCaseById(cid),
-        listBookingsByCaseId(cid),
-      ]);
-
-      setData(caseRes || null);
-      setBookings(Array.isArray(bookingRes) ? bookingRes : []);
-
-      // lawyer fetch
-      if (caseRes?.selected_lawyer_id) {
-        try {
-          const lawyerRes = await getUserById(caseRes.selected_lawyer_id);
-          setLawyer(lawyerRes || null);
-        } catch {
-          setLawyer(null);
-        }
-      } else {
-        setLawyer(null);
-      }
-
-      // documents fetch
-      try {
-        // IMPORTANT: this must hit /api/documents/by-case/:id inside service
-        const docRes = await listCaseDocuments(cid);
-
-        // axios returns {data: ...}
-        const docs = docRes?.data ?? docRes ?? [];
-        setDocuments(Array.isArray(docs) ? docs : []);
-      } catch (e) {
-        setDocuments([]);
-        setDocsError(
-          e?.response?.data?.detail ||
-            e?.response?.data?.message ||
-            "Failed to load documents."
-        );
-      }
-    } catch (e) {
-      const msg =
-        e?.response?.data?.detail ||
-        e?.response?.data?.message ||
-        "Failed to load case.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-      setDocsLoading(false);
-      setBookingsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await getCaseById(cid);
+        setData(res);
+      } catch (e) {
+        const msg = e?.response?.data?.detail || e?.response?.data?.message || "Failed to load case.";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (Number.isFinite(cid)) load();
   }, [cid]);
 
   useEffect(() => {
@@ -253,35 +149,41 @@ export default function ClientCaseDetailPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
-        <div className="text-xs text-slate-400 uppercase tracking-widest">
-          Client Portal / My Cases / Case #{cid}
+    <PageShell
+      title={data ? data.title : `Case #${cid}`}
+      subtitle="View case details and manage requests"
+      maxWidth="max-w-4xl"
+      contentClassName="space-y-4"
+    >
+      {loading && <div className="text-slate-300">Loading case…</div>}
+
+      {error && !loading && (
+        <div className="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-200 text-sm">
+          {error}
         </div>
+      )}
 
-        <section className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-white">
-                {loading ? "Loading..." : data?.title || `Case #${cid}`}
-              </h1>
-              {!loading && data?.status && (
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-900/30 text-emerald-200 border border-emerald-700/40">
-                  {data.status}
-                </span>
-              )}
+      {!loading && !error && data && (
+        <>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs uppercase text-slate-400">Case</div>
+                <div className="text-xl font-semibold text-white">{data.title}</div>
+              </div>
+              <div className="px-3 py-1 rounded-full text-xs bg-slate-900 border border-slate-700 text-slate-200">
+                {data.status || "unknown"}
+              </div>
             </div>
-
-            <div className="flex flex-wrap gap-2 text-sm text-slate-300">
-              <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
-                {data?.category || "Category"}
-              </span>
-              <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
-                {data?.district || "District"}
-              </span>
-              <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
-                Created {data?.created_at ? formatDate(data.created_at) : "-"}
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-200">
+              <div>
+                <div className="text-slate-400 text-xs uppercase">Category</div>
+                <div>{data.category || "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs uppercase">District</div>
+                <div>{data.district || "—"}</div>
+              </div>
             </div>
           </div>
 
@@ -309,35 +211,21 @@ export default function ClientCaseDetailPage() {
               </button>
             )}
           </div>
-        </section>
 
-        {error && !loading && (
-          <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 text-red-200 text-sm">
-            <div className="font-semibold">Unable to load case</div>
-            <div className="mt-1">{error}</div>
-            <button
-              onClick={loadAll}
-              className="mt-3 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-semibold"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
-          <div className="space-y-4">
-            <div className="sticky top-4 z-10 bg-slate-950/80 backdrop-blur border border-slate-800 rounded-2xl p-2 flex flex-wrap gap-2">
-              {tabs.map((tab) => (
+          <div className="flex gap-2">
+            {["overview", "requests"].map((tab) => {
+              const active = activeTab === tab;
+              return (
                 <button
                   key={tab.id}
                   onClick={() => setTab(tab.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                     activeTab === tab.id
                       ? "bg-amber-600/20 border-amber-500 text-white"
-                      : "bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500"
+                      : "bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500"
                   }`}
                 >
-                  {tab.label}
+                  {tab === "overview" ? "Overview" : "Requests"}
                 </button>
               ))}
             </div>
@@ -657,56 +545,19 @@ export default function ClientCaseDetailPage() {
             )}
           </div>
 
-          <aside className="space-y-4">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-white">Case Info</h3>
-              <div className="text-sm text-slate-300">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Case ID
-                </div>
-                #{cid}
+          {activeTab === "overview" && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-2 text-sm text-slate-200">
+              <div>
+                <span className="text-slate-400 text-xs uppercase">Status</span> {data.status || "—"}
               </div>
-              <div className="text-sm text-slate-300">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Status
-                </div>
-                {data?.status || "-"}
-              </div>
-              <div className="text-sm text-slate-300">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Category
-                </div>
-                {data?.category || "-"}
-              </div>
-              <div className="text-sm text-slate-300">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  District
-                </div>
-                {data?.district || "-"}
+              <div>
+                <span className="text-slate-400 text-xs uppercase">Created</span>{" "}
+                {data.created_at ? new Date(data.created_at).toLocaleString() : "—"}
               </div>
             </div>
+          )}
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-white">Assigned Lawyer</h3>
-              {lawyer ? (
-                <>
-                  <div className="text-sm text-white font-semibold">
-                    {lawyer.full_name}
-                  </div>
-                  {lawyer.email && (
-                    <div className="text-xs text-slate-400">{lawyer.email}</div>
-                  )}
-                  <button
-                    onClick={() => navigate(`/client/profile/${lawyer.id}`)}
-                    className="mt-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-white hover:bg-slate-700"
-                  >
-                    View Lawyer Profile
-                  </button>
-                </>
-              ) : (
-                <div className="text-sm text-slate-300">No lawyer selected yet.</div>
-              )}
-            </div>
+          {activeTab === "requests" && <CaseRequestsPanel caseId={cid} />}
 
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
               <h3 className="text-sm font-semibold text-white">Quick Actions</h3>

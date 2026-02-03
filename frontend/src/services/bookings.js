@@ -35,16 +35,6 @@ export const listMyBookingSummaries = async () => {
 };
 
 /**
- * List bookings for a specific case (client or lawyer only)
- * @param {number} caseId
- * @returns {Promise<Array>}
- */
-export const listBookingsByCaseId = async (caseId) => {
-  const { data } = await api.get("/api/bookings", { params: { case_id: caseId } });
-  return data;
-};
-
-/**
  * Get a specific booking by ID
  * Only accessible by the booking's client or lawyer
  * @param {number} id - Booking ID

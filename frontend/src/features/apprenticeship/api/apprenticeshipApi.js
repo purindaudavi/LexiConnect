@@ -1,5 +1,14 @@
 import api from "../../../services/api";
 
+
+
+
+export const fetchCaseDocuments = async (caseId) => {
+  const res = await api.get(`/api/documents/by-case/${caseId}`);
+  return res.data;
+};
+
+
 // ✅ Users
 export const fetchMe = async () => {
   const res = await api.get("/api/users/me");
@@ -66,4 +75,46 @@ export const fetchApprenticeChoices = async () => {
 export const fetchCaseChoices = async () => {
   const res = await api.get("/api/apprenticeship/choices/cases");
   return res.data; // [{ id, title, district, status, category }]
+};
+
+
+export const fetchDocumentReviewLinks = async (docId) => {
+  const res = await api.get(`/api/documents/${docId}/review-link`);
+  return res.data; // list
+};
+
+export const upsertDocumentReviewLink = async (docId, payload) => {
+  const res = await api.post(`/api/documents/${docId}/review-link`, payload);
+  return res.data; // saved row
+};
+
+
+export const downloadDocument = async (docId) => {
+  const res = await api.get(`/api/documents/${docId}/download`, {
+    responseType: "blob",
+  });
+
+  // Try to extract filename from Content-Disposition
+  const disposition = res.headers?.["content-disposition"] || "";
+  let filename = "";
+
+  // supports filename="x.pdf" and filename*=UTF-8''x.pdf
+  const utf8Match = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  const plainMatch = disposition.match(/filename="?([^"]+)"?/i);
+
+  if (utf8Match?.[1]) filename = decodeURIComponent(utf8Match[1]);
+  else if (plainMatch?.[1]) filename = plainMatch[1];
+
+  return { blob: res.data, filename, contentType: res.headers?.["content-type"] };
+};
+
+
+
+// add this to your apprenticeshipApi.js (same place you already have fetchCaseNotesForLawyer)
+
+export const addLawyerCaseNote = async (caseId, text) => {
+  const res = await api.post(`/api/apprenticeship/cases/${caseId}/notes`, {
+    note: text,
+  });
+  return res.data;
 };

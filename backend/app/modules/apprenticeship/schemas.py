@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -45,6 +44,12 @@ class ApprenticeNoteOut(BaseModel):
     apprentice_id: int
     note: str
     created_at: datetime
+
+    # ✅ NEW (for chat UI)
+    author_id: Optional[int] = None
+    author_role: Optional[str] = None
+    author_name: Optional[str] = None
+
 
 
 class ApprenticeChoiceOut(BaseModel):

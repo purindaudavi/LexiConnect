@@ -19,11 +19,6 @@ export async function getCaseById(caseId) {
   return res.data;
 }
 
-export async function getUserById(userId) {
-  const res = await api.get(`/api/users/${userId}`);
-  return res.data;
-}
-
 export async function createCase(payload) {
   const res = await api.post("/api/cases", payload);
   return res.data;

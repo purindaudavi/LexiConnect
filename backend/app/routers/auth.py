@@ -11,8 +11,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.lawyer import Lawyer
-from app.models.kyc_submission import KYCSubmission
-from app.models.lawyer_kyc import LawyerKYC, KYCStatus
 from app.modules.lawyer_profiles.models import LawyerProfile
 from app.schemas.auth import Token
 from app.schemas.user import UserCreate, UserOut
@@ -162,76 +160,42 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         role=user_in.role or UserRole.client,
     )
 
-    try:
-        db.add(user)
-        db.flush()
+    db.add(user)
+    db.commit()
+    db.refresh(user)
 
-        if user.role == UserRole.lawyer:
+    # ✅ If lawyer, ensure Lawyer + LawyerProfile rows exist
+    if user.role == UserRole.lawyer:
+        try:
             lawyer_row = db.query(Lawyer).filter(Lawyer.email == user.email).first()
             if not lawyer_row:
                 lawyer_row = Lawyer(name=user.full_name, email=user.email)
                 db.add(lawyer_row)
-                db.flush()
+                db.commit()
+                db.refresh(lawyer_row)
 
             profile_row = db.query(LawyerProfile).filter(LawyerProfile.user_id == user.id).first()
             if not profile_row:
-                languages = user_in.languages
-                if isinstance(languages, str):
-                    languages = [item.strip() for item in languages.split(",") if item.strip()]
-
                 profile_row = LawyerProfile(
                     user_id=user.id,
-                    district=user_in.district or None,
-                    city=user_in.city or None,
-                    specialization=user_in.specialization or None,
-                    languages=languages or None,
-                    years_of_experience=user_in.years_of_experience,
-                    bio=user_in.bio or None,
+                    district="Colombo",
+                    city="Colombo",
+                    specialization="General",
+                    languages=["Sinhala", "English"],
+                    years_of_experience=5,
+                    bio="New lawyer profile",
                     rating=0.0,
                     is_verified=False,
                 )
                 db.add(profile_row)
+                db.commit()
+                db.refresh(profile_row)
 
-            kyc_existing = (
-                db.query(KYCSubmission)
-                .filter(KYCSubmission.lawyer_id == lawyer_row.id)
-                .first()
-            )
-            if not kyc_existing:
-                kyc = KYCSubmission(
-                    lawyer_id=lawyer_row.id,
-                    full_name=user.full_name,
-                    nic_number="pending",
-                    bar_council_id="pending",
-                    address="pending",
-                    contact_number=user.phone or "pending",
-                    bar_certificate_url=None,
-                    status="pending",
-                )
-                db.add(kyc)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed creating lawyer records: {e}")
 
-            legacy_kyc = (
-                db.query(LawyerKYC)
-                .filter(LawyerKYC.user_id == user.id)
-                .first()
-            )
-            if not legacy_kyc:
-                legacy_kyc = LawyerKYC(
-                    user_id=user.id,
-                    nic_number="pending",
-                    bar_association_id="pending",
-                    bar_certificate_path=None,
-                    status=KYCStatus.PENDING,
-                )
-                db.add(legacy_kyc)
-
-        db.commit()
-        db.refresh(user)
-        return user
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed creating user records: {e}")
-
+    return user
 
 
 @router.post("/login", response_model=Token)

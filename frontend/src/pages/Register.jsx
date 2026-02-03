@@ -10,12 +10,6 @@ const Register = () => {
     phone: "",
     password: "",
     role: "client",
-    district: "",
-    city: "",
-    specialization: "",
-    languages: "",
-    years_of_experience: "",
-    bio: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,26 +24,13 @@ const Register = () => {
     setError("");
     setLoading(true);
     try {
-      const payload = {
+      await api.post("/auth/register", {
         full_name: form.full_name,
         email: form.email,
         phone: form.phone,
         password: form.password,
         role: form.role,
-      };
-
-      if (form.role === "lawyer") {
-        if (form.district) payload.district = form.district;
-        if (form.city) payload.city = form.city;
-        if (form.specialization) payload.specialization = form.specialization;
-        if (form.languages) payload.languages = form.languages;
-        if (form.years_of_experience) {
-          payload.years_of_experience = Number(form.years_of_experience);
-        }
-        if (form.bio) payload.bio = form.bio;
-      }
-
-      await api.post("/auth/register", payload);
+      });
       navigate("/login");
     } catch (err) {
       const message =
@@ -174,92 +155,8 @@ const Register = () => {
             >
               <option value="client">Client</option>
               <option value="lawyer">Lawyer</option>
-              <option value="apprentice">Apprentice</option>
             </select>
           </label>
-
-          {form.role === "lawyer" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <label className="block text-sm text-white">
-                  District (optional)
-                  <input
-                    name="district"
-                    type="text"
-                    value={form.district}
-                    onChange={handleChange}
-                    placeholder="Colombo"
-                    className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  />
-                </label>
-
-                <label className="block text-sm text-white">
-                  City (optional)
-                  <input
-                    name="city"
-                    type="text"
-                    value={form.city}
-                    onChange={handleChange}
-                    placeholder="Colombo"
-                    className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <label className="block text-sm text-white">
-                  Specialization (optional)
-                  <input
-                    name="specialization"
-                    type="text"
-                    value={form.specialization}
-                    onChange={handleChange}
-                    placeholder="Corporate Law"
-                    className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  />
-                </label>
-
-                <label className="block text-sm text-white">
-                  Languages (optional)
-                  <input
-                    name="languages"
-                    type="text"
-                    value={form.languages}
-                    onChange={handleChange}
-                    placeholder="Sinhala, English"
-                    className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <label className="block text-sm text-white">
-                  Years of Experience (optional)
-                  <input
-                    name="years_of_experience"
-                    type="number"
-                    min="0"
-                    value={form.years_of_experience}
-                    onChange={handleChange}
-                    placeholder="0"
-                    className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  />
-                </label>
-              </div>
-
-              <label className="block text-sm text-white">
-                Bio (optional)
-                <textarea
-                  name="bio"
-                  value={form.bio}
-                  onChange={handleChange}
-                  placeholder="Brief profile summary"
-                  className="mt-2 w-full rounded-lg bg-slate-900/70 border border-slate-700/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30 transition-colors"
-                  rows={3}
-                />
-              </label>
-            </div>
-          )}
 
           {error && (
             <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">

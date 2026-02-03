@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getCaseIntake, createCaseIntake, updateCaseIntake } from "../api/caseIntake";
+import EmptyState from "./EmptyState";
 
 const CaseIntakeSection: React.FC = () => {
   const caseId = 1;
@@ -44,6 +45,7 @@ const CaseIntakeSection: React.FC = () => {
           setAnswersJson("{}");
           setError(null);
         } else {
+          setExists(false);
           setError(err?.response?.data?.detail || err?.message || "Failed to load intake");
         }
       } finally {
@@ -90,6 +92,9 @@ const CaseIntakeSection: React.FC = () => {
     }
   };
 
+  // ✅ Empty state: no intake exists (404), and we're not loading, and no error
+  const showEmpty = !loading && !error && !exists;
+
   return (
     <div>
       <h2>Case Intake</h2>
@@ -98,6 +103,17 @@ const CaseIntakeSection: React.FC = () => {
       {error && <div style={{ color: "red" }}>{error}</div>}
       {success && <div style={{ color: "green" }}>{success}</div>}
 
+      {showEmpty && (
+        <div style={{ marginTop: 12 }}>
+          <EmptyState
+            title="No intake submitted yet"
+            description="This case does not have an intake form submission."
+            actionText="Client can submit the intake from their dashboard. Lawyer can view it here after submission."
+          />
+        </div>
+      )}
+
+      {/* Only show the form if intake exists, or user is creating one */}
       <div style={{ marginTop: 12 }}>
         <label htmlFor="status">Status:&nbsp;</label>
         <select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>

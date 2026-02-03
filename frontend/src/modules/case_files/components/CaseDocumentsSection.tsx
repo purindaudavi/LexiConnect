@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import EmptyState from "./EmptyState";
+
 import {
   listCaseDocuments,
   uploadCaseDocument,

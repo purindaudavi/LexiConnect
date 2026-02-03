@@ -42,7 +42,7 @@ export default function LawyerBookingDetailPage() {
     if (!bookingData) return;
     try {
       if (bookingData?.case_id) {
-        const { data: caseDocs } = await api.get(`/documents/by-case/${bookingData.case_id}`);
+        const { data: caseDocs } = await api.get(`/api/documents/by-case/${bookingData.case_id}`);
         setDocs(caseDocs || []);
       } else {
         const { data: bookingDocs } = await api.get(`/api/documents`, { params: { booking_id: bookingId } });

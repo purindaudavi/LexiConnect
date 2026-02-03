@@ -12,6 +12,7 @@ from .schemas import (
     CaseChoiceOut,
 )
 
+# ✅ Correct imports for YOUR repo:
 from app.database import get_db
 from app.routers.auth import get_current_user
 
@@ -42,6 +43,7 @@ def add_case_note(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    # NOW supports lawyer OR apprentice depending on role + assignment
     return service.add_note(db, user, case_id, payload.note)
 
 
@@ -51,6 +53,7 @@ def get_case_notes(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    # returns notes for apprentice (if assigned) OR lawyer (if assigned by that lawyer)
     return service.get_case_notes_for_lawyer(db, user, case_id)
 
 

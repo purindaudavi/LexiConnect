@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Union, List
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -15,12 +15,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    district: Optional[str] = None
-    city: Optional[str] = None
-    specialization: Optional[str] = None
-    languages: Optional[Union[str, List[str]]] = None
-    years_of_experience: Optional[int] = None
-    bio: Optional[str] = None
 
 
 class UserOut(UserBase):
