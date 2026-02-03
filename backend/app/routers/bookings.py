@@ -120,7 +120,7 @@ def create_booking(
         (s.astimezone(timezone.utc) == scheduled_at.astimezone(timezone.utc)) for s in allowed_starts
     )
     if not matches:
-        raise HTTPException(status_code=400, detail="Selected time is not the next available slot")
+        raise HTTPException(status_code=400, detail="Please select the earliest available time.")
 
     duration_minutes = int(pkg.duration or 0)
     if duration_minutes <= 0:
@@ -142,7 +142,7 @@ def create_booking(
         .first()
     )
     if conflict:
-        raise HTTPException(status_code=409, detail="Selected time overlaps an existing booking")
+        raise HTTPException(status_code=409, detail="SLOT_TAKEN")
 
     booking = Booking(
         client_id=current_user.id,
@@ -161,7 +161,7 @@ def create_booking(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Selected time overlaps an existing booking")
+        raise HTTPException(status_code=409, detail="SLOT_TAKEN")
     db.refresh(booking)
     # Diagnostics: confirm insert + log DB URL/schema and timestamps (sanitized).
     try:

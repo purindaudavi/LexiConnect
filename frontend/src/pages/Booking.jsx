@@ -108,22 +108,6 @@ const formatDateLabel = (value) => {
   }
 };
 
-const dedupeSlots = (slots, date) => {
-  const sorted = [...slots].sort((a, b) => {
-    const aTime = new Date(a.start).getTime();
-    const bTime = new Date(b.start).getTime();
-    return aTime - bTime;
-  });
-  const map = new Map();
-  for (const slot of sorted) {
-    const localStart = toLocalTime(slot.start);
-    const key = `${slot.branch_id || "none"}-${slot.start}`;
-    if (map.has(key)) continue;
-    map.set(key, slot);
-  }
-  return Array.from(map.values());
-};
-
 const toLocalTime = (isoValue) => {
   if (!isoValue) return "";
   const date = new Date(isoValue);
@@ -332,8 +316,7 @@ export default function Booking() {
 
     for (const day of availableSlots) {
       const date = day.date;
-      const deduped = dedupeSlots(day.slots || [], date);
-      const daySlots = deduped.map((slot) => {
+      const daySlots = (day.slots || []).map((slot) => {
         const start = slot.start;
         const end = slot.end;
         const localStart = toLocalTime(start);
@@ -348,12 +331,6 @@ export default function Booking() {
           arrive_by: arriveBy,
           uiKey: `${slot.branch_id || "none"}-${slot.start}`,
         };
-      });
-
-      daySlots.sort((a, b) => {
-        const aMin = parseMinutes(a.start_time) ?? 0;
-        const bMin = parseMinutes(b.start_time) ?? 0;
-        return aMin - bMin;
       });
 
       if (daySlots.length) grouped[date] = daySlots;
