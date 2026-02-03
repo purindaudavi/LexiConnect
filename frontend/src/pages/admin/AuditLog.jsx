@@ -51,10 +51,10 @@ export default function AuditLog() {
       };
       if (debouncedSearch) params.keyword = debouncedSearch;
       if (action && action !== "All Actions") params.action = action;
-      if (success === "Success") params.success = true;
-      if (success === "Failure") params.success = false;
-      if (dateFrom) params.date_from = new Date(`${dateFrom}T00:00:00`).toISOString();
-      if (dateTo) params.date_to = new Date(`${dateTo}T23:59:59`).toISOString();
+      if (success === "Success") params.success = "success";
+      if (success === "Failure") params.success = "failure";
+      if (dateFrom) params.date_from = `${dateFrom}T00:00:00`;
+      if (dateTo) params.date_to = `${dateTo}T23:59:59`;
 
       const res = await api.get("/api/admin/audit-logs", { params });
       setLogs(res.data?.items || []);
@@ -153,6 +153,16 @@ export default function AuditLog() {
     }
   };
 
+  const resetFilters = () => {
+    setSearch("");
+    setAction("All Actions");
+    setSuccess("All");
+    setDateFrom("");
+    setDateTo("");
+    setPage(1);
+    fetchLogs(1, pageSize);
+  };
+
   const formatTimestamp = (ts) => {
     if (!ts) return "-";
     try {
@@ -178,7 +188,17 @@ export default function AuditLog() {
 
   const isSuccess = (entry) => {
     if (typeof entry.success === "boolean") return entry.success;
+    if (typeof entry.success === "string") {
+      const s = entry.success.toLowerCase();
+      if (["success", "true", "1", "ok"].includes(s)) return true;
+      if (["failure", "false", "0", "error", "failed"].includes(s)) return false;
+    }
     if (typeof entry?.meta?.success === "boolean") return entry.meta.success;
+    if (typeof entry?.meta?.success === "string") {
+      const s = entry.meta.success.toLowerCase();
+      if (["success", "true", "1", "ok"].includes(s)) return true;
+      if (["failure", "false", "0", "error", "failed"].includes(s)) return false;
+    }
     return null;
   };
 
@@ -278,24 +298,26 @@ export default function AuditLog() {
               </select>
             </div>
 
-            <div className="audit-filter-wrapper audit-date-wrapper">
-              <label className="audit-date-label">From</label>
-              <input
-                type="date"
-                className="audit-date-input"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
+            <div className="audit-filter-row">
+              <div className="audit-filter-wrapper audit-date-wrapper">
+                <label className="audit-date-label">From</label>
+                <input
+                  type="date"
+                  className="audit-date-input"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
 
-            <div className="audit-filter-wrapper audit-date-wrapper">
-              <label className="audit-date-label">To</label>
-              <input
-                type="date"
-                className="audit-date-input"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
+              <div className="audit-filter-wrapper audit-date-wrapper">
+                <label className="audit-date-label">To</label>
+                <input
+                  type="date"
+                  className="audit-date-input"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="audit-filter-wrapper">
@@ -322,15 +344,27 @@ export default function AuditLog() {
               </select>
             </div>
 
-            <div className="audit-filter-wrapper audit-dev-wrapper">
+            <div className="audit-filter-wrapper audit-reset-wrapper">
               <button
                 type="button"
-                className="btn btn-secondary audit-dev-btn"
-                onClick={generateSample}
+                className="btn btn-secondary audit-reset-btn"
+                onClick={resetFilters}
               >
-                Generate sample audit event
+                Reset filters
               </button>
             </div>
+
+            {import.meta.env.DEV && (
+              <div className="audit-filter-wrapper audit-dev-wrapper">
+                <button
+                  type="button"
+                  className="btn btn-secondary audit-dev-btn"
+                  onClick={generateSample}
+                >
+                  Generate sample audit event
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="audit-summary-grid">

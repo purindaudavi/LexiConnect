@@ -34,6 +34,14 @@
   flex-wrap: wrap;
 }
 
+.audit-filter-row {
+  display: flex;
+  gap: 16px;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
 .audit-search-wrapper,
 .audit-filter-wrapper {
   position: relative;
@@ -316,6 +324,33 @@
 .audit-dev-btn {
   width: 100%;
   justify-content: center;
+}
+
+.audit-reset-wrapper {
+  min-width: 180px;
+}
+
+.audit-reset-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 12px 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.audit-reset-btn:hover {
+  background: var(--bg-card);
+  border-color: var(--accent-gold);
+}
+
+.audit-reset-btn:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
 }
 
 .audit-description {

@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.requests import Request
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -29,12 +29,46 @@ def _is_dev_mode() -> bool:
     return env == "development" or debug == "true"
 
 
+def _parse_optional_bool(value: Optional[str]) -> Optional[bool]:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "y", "success", "ok"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "failure", "failed", "error"}:
+        return False
+    return None
+
+
+def _extract_success_value(log: AuditLog):
+    if getattr(log, "success", None) is not None:
+        return log.success
+    if getattr(log, "is_success", None) is not None:
+        return log.is_success
+    if getattr(log, "status", None) is not None:
+        status_str = str(log.status or "").strip().lower()
+        if status_str in {"success", "succeeded", "ok", "200", "true", "1"}:
+            return True
+        if status_str in {"failure", "failed", "error", "false", "0"}:
+            return False
+    meta_val = (log.meta or {}).get("success")
+    if isinstance(meta_val, bool):
+        return meta_val
+    if isinstance(meta_val, str):
+        meta_norm = meta_val.strip().lower()
+        if meta_norm in {"success", "succeeded", "ok", "true", "1"}:
+            return True
+        if meta_norm in {"failure", "failed", "error", "false", "0"}:
+            return False
+    return None
+
+
 @router.get("", response_model=AuditLogListOut)
 def list_audit_logs(
     action: Optional[str] = Query(None, description="Filter by action"),
     user_email: Optional[str] = Query(None, description="Filter by user email"),
     keyword: Optional[str] = Query(None, description="Search description or meta"),
-    success: Optional[bool] = Query(None, description="Filter by success"),
+    success: Optional[str] = Query(None, description="Filter by success"),
     date_from: Optional[datetime] = Query(None, description="Filter from date (inclusive)"),
     date_to: Optional[datetime] = Query(None, description="Filter to date (inclusive)"),
     page: int = Query(1, ge=1),
@@ -47,7 +81,7 @@ def list_audit_logs(
     query = db.query(AuditLog)
 
     if action:
-        query = query.filter(AuditLog.action == action)
+        query = query.filter(func.lower(AuditLog.action) == action.strip().lower())
 
     if user_email:
         like = f"%{user_email}%"
@@ -58,21 +92,62 @@ def list_audit_logs(
         meta_text = cast(AuditLog.meta, String)
         query = query.filter(or_(AuditLog.description.ilike(like), meta_text.ilike(like)))
 
-    if success is not None:
+    parsed_success = _parse_optional_bool(success)
+    if parsed_success is not None:
+        success_conditions = []
+        if getattr(AuditLog, "success", None) is not None:
+            success_conditions.append(AuditLog.success == parsed_success)
+        if getattr(AuditLog, "is_success", None) is not None:
+            success_conditions.append(AuditLog.is_success == parsed_success)
+        if getattr(AuditLog, "status", None) is not None:
+            success_conditions.append(
+                func.lower(cast(AuditLog.status, String)).in_(
+                    ["success", "succeeded", "ok", "200", "true"]
+                    if parsed_success
+                    else ["failure", "failed", "error", "false"]
+                )
+            )
+
         dialect = db.bind.dialect.name if db.bind is not None else ""
         if dialect == "postgresql":
-            query = query.filter(
-                AuditLog.meta["success"].astext == ("true" if success else "false")
+            target = "true" if parsed_success else "false"
+            success_conditions.append(
+                or_(
+                    AuditLog.meta["success"].astext == target,
+                    func.lower(AuditLog.meta["success"].astext).in_(
+                        [
+                            target,
+                            "success" if parsed_success else "failure",
+                            "ok" if parsed_success else "error",
+                            "1" if parsed_success else "0",
+                            "true" if parsed_success else "false",
+                        ]
+                    ),
+                )
             )
         else:
-            needle = '"success": true' if success else '"success": false'
-            query = query.filter(cast(AuditLog.meta, String).ilike(f"%{needle}%"))
+            needle_bool = '"success": true' if parsed_success else '"success": false'
+            needle_bool_ns = '"success":true' if parsed_success else '"success":false'
+            needle_str = '"success": "success"' if parsed_success else '"success": "failure"'
+            needle_str_ns = '"success":"success"' if parsed_success else '"success":"failure"'
+            meta_text = cast(AuditLog.meta, String)
+            success_conditions.append(
+                or_(
+                    meta_text.ilike(f"%{needle_bool}%"),
+                    meta_text.ilike(f"%{needle_bool_ns}%"),
+                    meta_text.ilike(f"%{needle_str}%"),
+                    meta_text.ilike(f"%{needle_str_ns}%"),
+                )
+            )
+
+        if success_conditions:
+            query = query.filter(or_(*success_conditions))
 
     if date_from:
-        query = query.filter(AuditLog.created_at >= date_from)
+        query = query.filter(func.date(AuditLog.created_at) >= date_from.date())
 
     if date_to:
-        query = query.filter(AuditLog.created_at <= date_to)
+        query = query.filter(func.date(AuditLog.created_at) <= date_to.date())
 
     total = query.count()
     logs = (
@@ -86,25 +161,26 @@ def list_audit_logs(
     if actor_ids:
         rows = db.query(User.id, User.email).filter(User.id.in_(actor_ids)).all()
         actor_email_by_id = {r.id: r.email for r in rows}
-    items = [
-        {
-            "id": l.id,
-            "actor_user_id": l.actor_user_id,
-            "actor_email": actor_email_by_id.get(l.actor_user_id),
-            "actor_role": (l.meta or {}).get("actor_role"),
-            "user_id": l.user_id,
-            "action": l.action,
-            "description": l.description,
-            "meta": l.meta,
-            "entity_type": (l.meta or {}).get("entity_type"),
-            "entity_id": (l.meta or {}).get("entity_id"),
-            "success": (l.meta or {}).get("success"),
-            "ip_address": (l.meta or {}).get("ip_address"),
-            "user_agent": (l.meta or {}).get("user_agent"),
-            "created_at": l.created_at,
-        }
-        for l in logs
-    ]
+    items = []
+    for l in logs:
+        items.append(
+            {
+                "id": l.id,
+                "actor_user_id": l.actor_user_id,
+                "actor_email": actor_email_by_id.get(l.actor_user_id),
+                "actor_role": (l.meta or {}).get("actor_role"),
+                "user_id": l.user_id,
+                "action": l.action,
+                "description": l.description,
+                "meta": l.meta,
+                "entity_type": (l.meta or {}).get("entity_type"),
+                "entity_id": (l.meta or {}).get("entity_id"),
+                "success": _extract_success_value(l),
+                "ip_address": (l.meta or {}).get("ip_address"),
+                "user_agent": (l.meta or {}).get("user_agent"),
+                "created_at": l.created_at,
+            }
+        )
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
