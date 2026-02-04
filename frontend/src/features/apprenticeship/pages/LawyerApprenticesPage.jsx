@@ -143,6 +143,7 @@ export default function LawyerApprenticesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-8 text-white">
         <h1 className="text-3xl font-bold">Apprenticeship</h1>
         <p className="text-slate-300 mt-2">
@@ -177,14 +178,14 @@ export default function LawyerApprenticesPage() {
         </div>
       </div>
 
-      {/* Dropdown load status */}
+      {/* Dropdown load error */}
       {choicesErr && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {choicesErr}
         </div>
       )}
 
-      {/* Assign */}
+      {/* ASSIGN TAB */}
       {tab === "assign" && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
@@ -333,7 +334,7 @@ export default function LawyerApprenticesPage() {
         </div>
       )}
 
-      {/* Notes -> only Chat View */}
+      {/* NOTES TAB */}
       {tab === "notes" && (
         <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
           <div className="flex items-center justify-between gap-4">

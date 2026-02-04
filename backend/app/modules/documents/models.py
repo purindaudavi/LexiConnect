@@ -11,7 +11,7 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True, index=True)
-    case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False, index=True)
 
     uploaded_by_user_id = Column(
         Integer,

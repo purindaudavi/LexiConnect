@@ -5,7 +5,7 @@ import smtplib
 from email.message import EmailMessage
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -23,6 +23,9 @@ from app.modules.auth.services import create_password_reset_token, consume_passw
 from app.modules.auth.schemas import ChangePasswordRequest, GenericMessageResponse
 from app.modules.rbac.models import Role as RoleModel, UserRole as UserRoleModel
 from app.modules.rbac.services import get_user_effective_privilege_keys
+from app.modules.auth_log.service import create_auth_log
+
+from uuid import UUID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -55,7 +58,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", scheme_name="BearerAuth")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", scheme_name="BearerAuth")
 
 
 def get_password_hash(password: str) -> str:
@@ -92,6 +95,45 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     expire = expires_delta or timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
     return _create_token(data, expire, "refresh")
+
+
+def _coerce_uuid(value) -> Optional[UUID]:
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _safe_log_auth(
+    db: Session,
+    *,
+    event_type: str,
+    success: bool,
+    email: Optional[str],
+    request: Optional[Request],
+    failure_reason: Optional[str] = None,
+    user_id=None,
+    method: Optional[str] = None,
+):
+    try:
+        create_auth_log(
+            db,
+            event_type=event_type,
+            success=success,
+            user_id=_coerce_uuid(user_id),
+            email=email,
+            failure_reason=failure_reason,
+            method=method,
+            request=request,
+        )
+    except Exception:
+        db.rollback()
 
 
 def _decode_token(token: str, expected_type: str) -> dict:
@@ -190,8 +232,44 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # OAuth2PasswordRequestForm uses 'username' field, but we use it as email
-    user = authenticate_user(db, form_data.username, form_data.password)
+    email = form_data.username
+    user = get_user_by_email(db, email)
     if not user:
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="USER_NOT_FOUND",
+            method="password",
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    if getattr(user, "is_active", True) is False or getattr(user, "disabled", False):
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="DISABLED",
+            user_id=user.id,
+            method="password",
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    if not verify_password(form_data.password, user.hashed_password):
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="WRONG_PASSWORD",
+            user_id=user.id,
+            method="password",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     # ✅ Store role as string in JWT to avoid enum serialization issues
@@ -330,6 +408,24 @@ def get_me(
         effective_privileges=privileges,
         created_at=current_user.created_at,
     )
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _safe_log_auth(
+        db,
+        event_type="LOGOUT",
+        success=True,
+        email=current_user.email,
+        request=request,
+        user_id=current_user.id,
+        method="token",
+    )
+    return {"message": "Logged out"}
 
 
 # ============================================================================

@@ -73,7 +73,6 @@ export default function ClientCaseDetailPage() {
 
   // ---------------- tabs ----------------
   const allowedTabs = ["overview", "documents", "bookings", "requests"];
-
   const normalizeTab = (value) =>
     allowedTabs.includes(value) ? value : "overview";
 
@@ -268,12 +267,24 @@ export default function ClientCaseDetailPage() {
 
   // ---------------- render ----------------
   return (
-    <PageShell
-      title={data ? data.title : `Case #${cid}`}
-      subtitle="View case details and manage requests"
-      maxWidth="max-w-4xl"
-      contentClassName="space-y-4"
-    >
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">
+            {data ? data.title : `Case #${cid}`}
+          </h1>
+          <p className="text-slate-300 text-sm">
+            View case details and manage requests
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/client/cases")}
+          className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white"
+        >
+          Back
+        </button>
+      </div>
+
       {loading && <div className="text-slate-300">Loading case…</div>}
 
       {error && !loading && (
@@ -286,7 +297,7 @@ export default function ClientCaseDetailPage() {
         <>
           {/* Header card */}
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-3">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs uppercase text-slate-400">Case</div>
                 <div className="text-xl font-semibold text-white">
@@ -308,6 +319,20 @@ export default function ClientCaseDetailPage() {
                 <div className="text-slate-400 text-xs uppercase">District</div>
                 <div>{data.district || "—"}</div>
               </div>
+              <div>
+                <div className="text-slate-400 text-xs uppercase">Created</div>
+                <div>{formatDateTime(data.created_at)}</div>
+              </div>
+              <div>
+                <div className="text-slate-400 text-xs uppercase">
+                  Assigned Lawyer
+                </div>
+                <div>
+                  {data.selected_lawyer_id
+                    ? `Lawyer #${data.selected_lawyer_id}`
+                    : "Not selected"}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -317,14 +342,21 @@ export default function ClientCaseDetailPage() {
               onClick={() => navigate("/client/cases")}
               className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white"
             >
-              Back to My Cases
+              Documents
             </button>
 
             <button
               onClick={() => setTab("documents")}
               className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white"
             >
-              Upload Document
+              Bookings
+            </button>
+
+            <button
+              onClick={() => setTab("requests")}
+              className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white"
+            >
+              Requests
             </button>
 
             {!upcomingBooking && (
@@ -394,6 +426,8 @@ export default function ClientCaseDetailPage() {
                     </div>
                     {data.status || "-"}
                   </div>
+                )}
+              </div>
 
                   <div className="text-sm text-slate-300">
                     <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -626,7 +660,7 @@ export default function ClientCaseDetailPage() {
                             Booking #{b.id}
                           </div>
                           <div className="text-xs text-slate-400">
-                            {b.service_name ? b.service_name : "Service"} •{" "}
+                            {b.service_name ? b.service_name : "Service"} â€¢{" "}
                             {formatDateTime(b.scheduled_at || b.created_at)}
                           </div>
                         </div>

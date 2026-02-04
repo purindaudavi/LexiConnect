@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import AuthLoginsPerMinuteLineChart from "../../features/admin/components/charts/AuthLoginsPerMinuteLineChart";
+import AuditTopActionsBarChart from "../../features/admin/components/charts/AuditTopActionsBarChart";
 import "./AdminDashboard.css";
 
 export default function AdminDashboard() {
@@ -117,6 +119,11 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </section>
+
+          <section className="admin-charts-grid">
+            <AuthLoginsPerMinuteLineChart />
+            <AuditTopActionsBarChart />
           </section>
 
           <section className="admin-kyc-banner">
