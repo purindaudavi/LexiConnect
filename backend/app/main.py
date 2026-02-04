@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Third-party imports
+import logging
 import time
 
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import text
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import OperationalError
 
 # OK Checklist Answers module router
@@ -22,7 +24,7 @@ from app.modules.checklist_answers.router import (
 )
 
 # Core DB
-from .database import SessionLocal, engine
+from .database import SessionLocal, engine, DATABASE_URL
 
 # ✅ IMPORTANT: ensure Specialization model is registered before Case mapper config
 from app.models.specialization import Specialization  # noqa: F401
@@ -56,9 +58,9 @@ from app.modules.checklist_answers.router import (  # noqa: E402
 
 # Legacy routers
 from .routers import admin, auth, bookings, dev, lawyers, token_queue, users  # noqa: F401, E402
-from .routers import apprentices  # noqa: F401, E402
 from .routers import admin_overview  # noqa: F401, E402
-from app.routers.lawyer_cases import router as lawyer_cases_router  # noqa: E402
+from app.modules.cases.routes import router as cases_router
+
 from app.routers.lawyer_availability import router as lawyer_availability_router  # noqa: E402
 
 # Module routers
@@ -87,6 +89,11 @@ from app.modules.intake.routes import router as intake_router  # noqa: E402
 from app.modules.cases.routes import router as cases_router  # noqa: E402
 from app.modules.specializations.routes import router as specializations_router  # noqa: E402
 from app.modules.rbac.routes import router as rbac_router  # noqa: E402
+from app.modules.public_feed.routes import router as public_feed_router  # noqa: E402
+from app.modules.case_comments.routes import (
+    router as case_comments_router,
+    votes_router as case_comment_votes_router,
+)  # noqa: E402
 
 # API v1 routers
 from .api.v1 import admin as admin_v1, booking as booking_v1  # noqa: E402
@@ -101,6 +108,8 @@ app = FastAPI(
     version="0.1.0",
     swagger_ui_parameters={"persistAuthorization": True},
 )
+
+logger = logging.getLogger(__name__)
 
 # OK Serve uploaded files so frontend can open PDFs/images in browser
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
@@ -148,6 +157,18 @@ def startup():
     wait_for_db()
     db = SessionLocal()
     try:
+        try:
+            logger.info(
+                "DATABASE_URL=%s",
+                make_url(DATABASE_URL).render_as_string(hide_password=True),
+            )
+        except Exception:
+            logger.info("DATABASE_URL=(unparseable)")
+        try:
+            db_name = db.execute(text("select current_database()")).scalar()
+            logger.info("Connected database=%s", db_name)
+        except Exception:
+            logger.exception("Failed to read current_database() on startup")
         seed_all(db)
     finally:
         db.close()
@@ -226,6 +247,9 @@ for module_router in (
 # ✅ Dedicated router include
 app.include_router(lawyer_availability_router, prefix="/api")
 app.include_router(cases_router, prefix="/api")
+app.include_router(public_feed_router, prefix="/api")
+app.include_router(case_comments_router, prefix="/api")
+app.include_router(case_comment_votes_router, prefix="/api")
 app.include_router(specializations_router, prefix="/api")
 app.include_router(rbac_router)
 

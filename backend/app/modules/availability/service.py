@@ -392,10 +392,9 @@ def _generate_sequential_slots_for_window(
     slot_minutes: int,
 ) -> list[tuple[datetime, datetime]]:
     """
-    Generate slots for a single window using a fixed grid and contiguous fill rule.
-    Only slots starting at/after the contiguous end are allowed.
+    Generate slots for a single window by returning only the earliest start in each free interval.
     """
-    if duration_minutes <= 0 or window_end <= window_start or slot_minutes <= 0:
+    if duration_minutes <= 0 or window_end <= window_start:
         return []
 
     window_busy = sorted(
@@ -410,34 +409,14 @@ def _generate_sequential_slots_for_window(
         key=lambda item: item[0],
     )
 
-    # Apply "no idle gaps" only when a booking starts at day_start.
-    cursor = window_start
-    anchored = any(busy_start <= window_start < busy_end for busy_start, busy_end in window_busy) or any(
-        busy_start == window_start for busy_start, _ in window_busy
-    )
-    if anchored:
-        for busy_start, busy_end in window_busy:
-            if busy_start > cursor:
-                break
-            if busy_end > cursor:
-                cursor = busy_end
-        earliest_start = _ceil_to_minutes(cursor, slot_minutes)
-    else:
-        earliest_start = _ceil_to_minutes(window_start, slot_minutes)
-    step = timedelta(minutes=slot_minutes)
     duration = timedelta(minutes=duration_minutes)
 
+    free_windows = _subtract_intervals([(window_start, window_end)], window_busy)
     slots: list[tuple[datetime, datetime]] = []
-    current = earliest_start
-    while current + duration <= window_end:
-        candidate_end = current + duration
-        overlaps = any(
-            current < busy_end and candidate_end > busy_start
-            for busy_start, busy_end in window_busy
-        )
-        if not overlaps:
-            slots.append((current, candidate_end))
-        current += step
+    for free_start, free_end in free_windows:
+        candidate_end = free_start + duration
+        if candidate_end <= free_end:
+            slots.append((free_start, candidate_end))
     return slots
 
 
@@ -534,10 +513,7 @@ def get_available_slots(
             Booking.scheduled_at < range_end_utc,
         )
     )
-    if hasattr(Booking, "blocks_time"):
-        bookings_query = bookings_query.filter(Booking.blocks_time.is_(True))
-    else:
-        bookings_query = bookings_query.filter(func.lower(Booking.status).in_(list(active_statuses)))
+    bookings_query = bookings_query.filter(func.lower(Booking.status).in_(list(active_statuses)))
     bookings = bookings_query.all()
 
     booking_service_ids = {b.service_package_id for b in bookings if b.service_package_id}

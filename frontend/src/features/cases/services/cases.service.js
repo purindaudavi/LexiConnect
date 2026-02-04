@@ -10,12 +10,17 @@ export async function getMyCases() {
 }
 
 export async function getSpecializations() {
-  const res = await api.get("/api/specializations");
+  const res = await api.get("/api/specializations/");
   return res.data;
 }
 
 export async function getCaseById(caseId) {
   const res = await api.get(`/api/cases/${caseId}`);
+  return res.data;
+}
+
+export async function getUserById(id) {
+  const res = await api.get(`/api/users/${id}`);
   return res.data;
 }
 

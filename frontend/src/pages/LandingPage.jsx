@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Scale,
@@ -16,10 +16,23 @@ import {
 } from "lucide-react";
 import useRequireAuth from "../hooks/useRequireAuth";
 import LoginRequiredModal from "../components/ui/LoginRequiredModal";
+import { fetchPublicCases } from "../features/publicFeed/services/publicFeedApi";
+import { getSpecializations } from "../features/cases/services/cases.service";
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const { requireAuth, modalOpen, closeModal } = useRequireAuth();
+  const [publicCases, setPublicCases] = useState([]);
+  const [publicCasesLoading, setPublicCasesLoading] = useState(true);
+  const [publicCasesError, setPublicCasesError] = useState("");
+  const [specializations, setSpecializations] = useState([]);
+  const [specializationsLoading, setSpecializationsLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    q: "",
+    district: "",
+    specialization_id: "",
+    sort: "latest",
+  });
 
   const previewLawyers = useMemo(
     () => [
@@ -73,6 +86,74 @@ export default function LandingPage() {
     ],
     []
   );
+
+  const districtOptions = useMemo(
+    () => ["Colombo", "Kandy", "Galle", "Jaffna", "Gampaha"],
+    []
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSpecializations = async () => {
+      try {
+        const data = await getSpecializations();
+        if (!mounted) return;
+        setSpecializations(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!mounted) return;
+        setSpecializations([
+          { id: 1, name: "Family Law" },
+          { id: 2, name: "Property & Conveyancing" },
+          { id: 3, name: "Corporate & Contracts" },
+          { id: 4, name: "Criminal Defense" },
+        ]);
+      } finally {
+        if (mounted) {
+          setSpecializationsLoading(false);
+        }
+      }
+    };
+    loadSpecializations();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    setPublicCasesLoading(true);
+    setPublicCasesError("");
+
+    const timeout = setTimeout(async () => {
+      try {
+        const params = {
+          q: filters.q || undefined,
+          district: filters.district || undefined,
+          specialization_id: filters.specialization_id
+            ? Number(filters.specialization_id)
+            : undefined,
+          sort: filters.sort || "latest",
+          limit: 6,
+          offset: 0,
+        };
+        const data = await fetchPublicCases(params);
+        if (!mounted) return;
+        setPublicCases(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!mounted) return;
+        setPublicCasesError("Unable to load public cases right now.");
+      } finally {
+        if (mounted) {
+          setPublicCasesLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
+  }, [filters]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
@@ -195,6 +276,128 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* Trending Legal Issues */}
+          <section className="space-y-5">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold">Trending Legal Issues</h2>
+                <p className="text-slate-400 text-sm">
+                  Browse public case discussions and see what people are asking about.
+                </p>
+              </div>
+              <Link
+                to="/public/cases"
+                className="text-sm text-amber-300 hover:text-amber-200 inline-flex items-center gap-2"
+              >
+                View all discussions <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid lg:grid-cols-4 gap-3">
+              <div className="lg:col-span-2">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800">
+                  <Search className="w-4 h-4 text-slate-400" />
+                  <input
+                    value={filters.q}
+                    onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
+                    placeholder="Search by keyword"
+                    className="w-full bg-transparent text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <select
+                  value={filters.district}
+                  onChange={(e) => setFilters((f) => ({ ...f, district: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800 text-sm text-slate-200 focus:outline-none"
+                >
+                  <option value="">All districts</option>
+                  {districtOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <select
+                  value={filters.specialization_id}
+                  onChange={(e) =>
+                    setFilters((f) => ({ ...f, specialization_id: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800 text-sm text-slate-200 focus:outline-none"
+                >
+                  <option value="">
+                    {specializationsLoading ? "Loading..." : "All specializations"}
+                  </option>
+                  {!specializationsLoading &&
+                    specializations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-3">
+              <div className="lg:col-span-1">
+                <select
+                  value={filters.sort}
+                  onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-800 text-sm text-slate-200 focus:outline-none"
+                >
+                  <option value="latest">Latest</option>
+                  <option value="most_commented">Most Discussed</option>
+                </select>
+              </div>
+            </div>
+
+            {publicCasesError && (
+              <div className="text-sm text-red-300">{publicCasesError}</div>
+            )}
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {publicCasesLoading ? (
+                <div className="col-span-full text-slate-400 text-sm">Loading cases...</div>
+              ) : publicCases.length === 0 ? (
+                <div className="col-span-full text-slate-400 text-sm">No cases found</div>
+              ) : (
+                publicCases.map((c) => (
+                  <div
+                    key={c.id}
+                    className="border border-slate-800 rounded-xl bg-slate-900/60 p-4 space-y-3"
+                  >
+                    <div className="text-lg font-semibold text-white">{c.title}</div>
+                    <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {c.district || "—"}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <Briefcase className="w-3 h-3" />
+                        {c.specialization_name || c.category || "—"}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        {c.comment_count || 0} comments
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}
+                    </div>
+                    <Link
+                      to={`/public/cases/${c.id}`}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-white hover:bg-slate-700 transition-colors"
+                    >
+                      View discussion <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                ))
+              )}
             </div>
           </section>
 

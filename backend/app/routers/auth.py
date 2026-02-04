@@ -1,11 +1,15 @@
 from datetime import datetime, timedelta
+import os
+import logging
+import smtplib
+from email.message import EmailMessage
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,10 +19,37 @@ from app.modules.lawyer_profiles.models import LawyerProfile
 from app.schemas.auth import Token
 from app.schemas.user import UserCreate, UserOut
 from app.schemas.user_public import UserMeOut
+from app.modules.auth.services import create_password_reset_token, consume_password_reset_token
+from app.modules.auth.schemas import ChangePasswordRequest, GenericMessageResponse
 from app.modules.rbac.models import Role as RoleModel, UserRole as UserRoleModel
 from app.modules.rbac.services import get_user_effective_privilege_keys
+from app.modules.auth_log.service import create_auth_log
+
+from uuid import UUID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+
+def _send_password_reset_email(recipient: str, reset_link: str) -> None:
+    host = os.getenv("SMTP_HOST", "localhost")
+    port = int(os.getenv("SMTP_PORT", "1025"))
+    sender = os.getenv("EMAIL_FROM", "no-reply@lexiconnect.local")
+
+    message = EmailMessage()
+    message["Subject"] = "Reset your LexiConnect password"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        f"Use the link below to reset your password:\n\n{reset_link}\n"
+    )
+
+    try:
+        logger.info("SMTP connect host=%s port=%s", host, port)
+        with smtplib.SMTP(host, port) as smtp:
+            smtp.send_message(message)
+    except Exception:
+        logger.exception("Failed to send password reset email")
 
 # ✅ Move to env in production
 SECRET_KEY = "CHANGE_ME_SECRET_KEY"
@@ -27,7 +58,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", scheme_name="BearerAuth")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", scheme_name="BearerAuth")
 
 
 def get_password_hash(password: str) -> str:
@@ -64,6 +95,45 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     expire = expires_delta or timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
     return _create_token(data, expire, "refresh")
+
+
+def _coerce_uuid(value) -> Optional[UUID]:
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _safe_log_auth(
+    db: Session,
+    *,
+    event_type: str,
+    success: bool,
+    email: Optional[str],
+    request: Optional[Request],
+    failure_reason: Optional[str] = None,
+    user_id=None,
+    method: Optional[str] = None,
+):
+    try:
+        create_auth_log(
+            db,
+            event_type=event_type,
+            success=success,
+            user_id=_coerce_uuid(user_id),
+            email=email,
+            failure_reason=failure_reason,
+            method=method,
+            request=request,
+        )
+    except Exception:
+        db.rollback()
 
 
 def _decode_token(token: str, expected_type: str) -> dict:
@@ -107,6 +177,9 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     existing = get_user_by_email(db, user_in.email)
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    if user_in.role == UserRole.apprentice:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apprentice registration is not allowed")
 
     hashed_password = get_password_hash(user_in.password)
 
@@ -156,11 +229,47 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # OAuth2PasswordRequestForm uses 'username' field, but we use it as email
-    user = authenticate_user(db, form_data.username, form_data.password)
+    email = form_data.username
+    user = get_user_by_email(db, email)
     if not user:
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="USER_NOT_FOUND",
+            method="password",
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    if getattr(user, "is_active", True) is False or getattr(user, "disabled", False):
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="DISABLED",
+            user_id=user.id,
+            method="password",
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    if not verify_password(form_data.password, user.hashed_password):
+        _safe_log_auth(
+            db,
+            event_type="LOGIN",
+            success=False,
+            email=email,
+            request=request,
+            failure_reason="WRONG_PASSWORD",
+            user_id=user.id,
+            method="password",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     # ✅ Store role as string in JWT to avoid enum serialization issues
@@ -175,7 +284,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         expires_delta=timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES),
     )
 
-    return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
+    user_payload = UserOut.model_validate(user)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "must_change_password": user.must_change_password,
+        "user": user_payload,
+    }
 
 
 class RefreshRequest(BaseModel):
@@ -199,7 +315,74 @@ def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
     new_access = create_access_token(base_claims)
     new_refresh = create_refresh_token(base_claims)
 
-    return Token(access_token=new_access, refresh_token=new_refresh, token_type="bearer")
+    return Token(
+        access_token=new_access,
+        refresh_token=new_refresh,
+        token_type="bearer",
+        must_change_password=user.must_change_password,
+    )
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = get_user_by_email(db, payload.email)
+    if user:
+        raw_token, _expires_at = create_password_reset_token(user.id, db=db)
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        reset_link = f"{frontend_url}/reset-password?token={raw_token}"
+
+        _send_password_reset_email(user.email, reset_link)
+
+    return {"message": "If the email exists, a reset link was sent."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters")
+
+    try:
+        user_id = consume_password_reset_token(payload.token, db=db)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    user.must_change_password = False
+    db.commit()
+
+    return {"message": "Password reset successful"}
+
+
+@router.post("/change-password", response_model=GenericMessageResponse)
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters")
+
+    current_user.hashed_password = get_password_hash(payload.new_password)
+    current_user.must_change_password = False
+    db.commit()
+
+    return GenericMessageResponse(message="Password updated successfully")
 
 
 @router.get("/me", response_model=UserMeOut)
@@ -225,6 +408,24 @@ def get_me(
         effective_privileges=privileges,
         created_at=current_user.created_at,
     )
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _safe_log_auth(
+        db,
+        event_type="LOGOUT",
+        success=True,
+        email=current_user.email,
+        request=request,
+        user_id=current_user.id,
+        method="token",
+    )
+    return {"message": "Logged out"}
 
 
 # ============================================================================

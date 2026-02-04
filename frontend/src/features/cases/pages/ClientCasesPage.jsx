@@ -9,6 +9,7 @@ export default function ClientCasesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [districtFilter, setDistrictFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState("Newest");
 
   const [showForm, setShowForm] = useState(false);
@@ -51,7 +52,14 @@ export default function ClientCasesPage() {
     setSpecializationsError("");
     try {
       const data = await getSpecializations();
-      setSpecializations(Array.isArray(data) ? data : []);
+      const list =
+  Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+    ? data.items
+    : [];
+
+setSpecializations(list);
     } catch (err) {
       const message =
         err?.response?.data?.detail ||
@@ -202,6 +210,17 @@ export default function ClientCasesPage() {
                 {uniqueDistricts.map((d) => (
                   <option key={d} value={d}>
                     {d}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                {["All", "Open", "Closed"].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
@@ -389,6 +408,13 @@ export default function ClientCasesPage() {
                     className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
                   >
                     Open Case
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/public/cases/${c.id}`)}
+                    className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
+                  >
+                    Open Discussion
                   </button>
                   <button
                     type="button"

@@ -4,6 +4,9 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import LandingPage from "../pages/LandingPage";
 import NotAuthorized from "../pages/NotAuthorized";
+import ForgotPasswordPage from "../features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "../features/auth/pages/ResetPasswordPage";
+import ForceResetPasswordPage from "../features/auth/pages/ForceResetPasswordPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 import AuthLayout from "../layouts/AuthLayout";
@@ -53,6 +56,9 @@ import LawyerEditProfilePage from "../features/lawyer_profile/pages/LawyerEditPr
 import LawyerPublicProfilePage from "../features/lawyer_profile/pages/LawyerPublicProfilePage";
 import LawyerSettingsPage from "../features/lawyer_profile/pages/LawyerSettingsPage";
 import LawyerDashboard from "../pages/LawyerDashboard";
+import PublicCaseDetailsPage from "../features/publicFeed/pages/PublicCaseDetailsPage";
+import PublicCaseFeedPage from "../features/publicFeed/pages/PublicCaseFeedPage";
+import LawyerPublicCaseDetailsPage from "../features/lawyer/pages/LawyerPublicCaseDetailsPage";
 
 // OK Cases
 import ClientCasesPage from "../features/cases/pages/ClientCasesPage";
@@ -78,6 +84,7 @@ import AdminDashboard from "../pages/admin/AdminDashboard";
 import KYCApproval from "../pages/admin/KYCApproval";
 import AuditLog from "../pages/admin/AuditLog";
 import AccessControl from "../pages/admin/AccessControl";
+import AuthLogPage from "../features/admin/pages/AuthLogPage";
 
 const DashboardRedirect = () => {
   const role = (getRole() || localStorage.getItem("role") || "").toLowerCase();
@@ -164,6 +171,8 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/public/cases" element={<PublicCaseFeedPage />} />
+      <Route path="/public/cases/:id" element={<PublicCaseDetailsPage />} />
 
       {/* Dashboard redirect */}
       <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -172,6 +181,18 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+      </Route>
+
+      <Route
+        element={
+          <RequireAuth>
+            <AuthLayout />
+          </RequireAuth>
+        }
+      >
+        <Route path="/force-reset-password" element={<ForceResetPasswordPage />} />
       </Route>
 
       {/* Client area */}
@@ -244,6 +265,7 @@ const AppRoutes = () => {
         <Route path="/lawyer/cases/feed" element={<LawyerCaseFeedPage />} />
         <Route path="/lawyer/cases/requests" element={<LawyerMyRequestsPage />} />
         <Route path="/lawyer/cases/:caseId" element={<LawyerCaseDetailPage />} />
+        <Route path="/lawyer/public/cases/:id" element={<LawyerPublicCaseDetailsPage />} />
         <Route path="/lawyer/profile/edit" element={<LawyerEditProfilePage />} />
         <Route path="/lawyer/public-profile" element={<LawyerPublicProfilePage />} />
         <Route path="/lawyer/settings" element={<LawyerSettingsPage />} />
@@ -280,6 +302,7 @@ const AppRoutes = () => {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/kyc-approval" element={<KYCApproval />} />
         <Route path="/admin/audit-log" element={<AuditLog />} />
+        <Route path="/admin/auth-log" element={<AuthLogPage />} />
         <Route path="/admin/access-control" element={<AccessControl />} />
 
         <Route path="/admin/disputes" element={<AdminDisputesListPage />} />

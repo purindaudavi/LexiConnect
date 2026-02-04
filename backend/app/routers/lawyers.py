@@ -1,7 +1,12 @@
 from typing import List, Optional
+import logging
+import os
+import secrets
+import smtplib
+from email.message import EmailMessage
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import and_, func, inspect, literal
 from sqlalchemy.orm import Session
 from sqlalchemy import MetaData, Table
@@ -13,10 +18,11 @@ from app.models.service_package import ServicePackage
 from app.models.branch import Branch
 from app.models.booking import Booking
 from app.modules.lawyer_profiles.models import LawyerProfile
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_password_hash
 from app.modules.cases.models import Case
 
 router = APIRouter(prefix="/lawyers", tags=["Lawyers"])
+logger = logging.getLogger(__name__)
 
 
 class LawyerSearchItem(BaseModel):
@@ -79,6 +85,16 @@ class LawyerPublicProfileOut(BaseModel):
     response_time_hours: Optional[int] = None
     service_packages: List[ServicePackagePublicOut] = Field(default_factory=list)
     recent_reviews: List[ReviewPublicOut] = Field(default_factory=list)
+
+
+class ApprenticeCreateRequest(BaseModel):
+    name: str
+    email: EmailStr
+    nic: str = Field(min_length=1)
+
+
+class ApprenticeCreateResponse(BaseModel):
+    message: str
 
 
 @router.get("/")
@@ -282,6 +298,69 @@ def search_lawyers(
         )
 
     return LawyerSearchResponse(items=items, page=page, limit=limit, total=total)
+
+
+@router.post("/apprentices", response_model=ApprenticeCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_apprentice(
+    payload: ApprenticeCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.lawyer:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only lawyers can create apprentices")
+
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    nic = payload.nic.strip()
+    if not nic:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="NIC is required")
+
+    temp_password = f"{nic[-6:]}{secrets.randbelow(100):02d}"
+    hashed_password = get_password_hash(temp_password)
+
+    apprentice = User(
+        full_name=payload.name,
+        email=payload.email,
+        hashed_password=hashed_password,
+        role=UserRole.apprentice,
+        nic=nic,
+        must_change_password=True,
+        created_by_user_id=current_user.id,
+    )
+
+    db.add(apprentice)
+    db.commit()
+    db.refresh(apprentice)
+
+    login_link = "http://localhost:5173/login"
+    _send_apprentice_onboarding_email(payload.email, temp_password, login_link)
+
+    return ApprenticeCreateResponse(message="Apprentice created and onboarding email sent.")
+
+
+def _send_apprentice_onboarding_email(recipient: str, temp_password: str, login_link: str) -> None:
+    host = os.getenv("SMTP_HOST", "localhost")
+    port = int(os.getenv("SMTP_PORT", "1025"))
+    sender = os.getenv("EMAIL_FROM", "no-reply@lexiconnect.local")
+
+    message = EmailMessage()
+    message["Subject"] = "LexiConnect Apprentice Account"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "Your LexiConnect apprentice account is ready.\n\n"
+        f"Temporary password: {temp_password}\n"
+        f"Login: {login_link}\n"
+    )
+
+    try:
+        logger.info("SMTP connect host=%s port=%s", host, port)
+        with smtplib.SMTP(host, port) as smtp:
+            smtp.send_message(message)
+    except Exception:
+        logger.exception("Failed to send apprentice onboarding email")
 
 
 @router.get("/{lawyer_id}")
