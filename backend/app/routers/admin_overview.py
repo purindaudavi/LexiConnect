@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.booking import Booking
 from app.models.kyc_submission import KYCSubmission
 from app.models.user import User, UserRole
+from app.modules.audit_log.models import AuditLog
+from app.modules.auth_log.models import AuthLog
 from app.modules.lawyer_profiles.models import LawyerProfile
 from app.routers.auth import get_current_user
 from app.schemas.admin_overview import AdminOverviewResponse, LawyerOverview, RecentBooking
@@ -90,3 +95,76 @@ def admin_overview(
         recent_bookings=recent_bookings,
         lawyers=lawyers,
     )
+
+
+@router.get("/metrics/auth-logins-per-minute")
+def auth_logins_per_minute(
+    minutes: int = Query(60, ge=5, le=240),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+
+    now_utc = datetime.now(timezone.utc)
+    minutes = max(5, min(240, minutes))
+    cutoff = now_utc - timedelta(minutes=minutes)
+
+    rows = (
+        db.query(
+            func.date_trunc("minute", AuthLog.occurred_at).label("minute"),
+            func.count().label("count"),
+        )
+        .filter(AuthLog.occurred_at >= cutoff, AuthLog.event_type == "LOGIN")
+        .group_by("minute")
+        .order_by("minute")
+        .all()
+    )
+
+    counts = {}
+    for row in rows:
+        minute = row.minute
+        if minute is None:
+            continue
+        if minute.tzinfo is None:
+            minute = minute.replace(tzinfo=timezone.utc)
+        counts[minute] = int(row.count or 0)
+
+    start = cutoff.replace(second=0, microsecond=0)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    end = now_utc.replace(second=0, microsecond=0)
+
+    series = []
+    cursor = start
+    while cursor <= end:
+        count = counts.get(cursor, 0)
+        minute_iso = cursor.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        series.append({"minute": minute_iso, "count": count})
+        cursor = cursor + timedelta(minutes=1)
+
+    return series
+
+
+@router.get("/metrics/audit-top-actions")
+def audit_top_actions(
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(8, ge=3, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+
+    days = max(1, min(90, days))
+    limit = max(3, min(20, limit))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        db.query(AuditLog.action, func.count().label("count"))
+        .filter(AuditLog.created_at >= cutoff)
+        .group_by(AuditLog.action)
+        .order_by(func.count().desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [{"action": r.action, "count": int(r.count or 0)} for r in rows]

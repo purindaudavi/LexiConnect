@@ -13,6 +13,7 @@ const AdminLayout = () => {
     { to: "/admin/kyc-approval", label: "KYC Approval", enabled: canApproveKyc },
     { to: "/admin/disputes", label: "Disputes", enabled: canManageDisputes },
     { to: "/admin/audit-log", label: "Audit Log", enabled: canViewAuditLog },
+    { to: "/admin/auth-log", label: "Auth Log", enabled: canViewAuditLog },
     { to: "/admin/access-control", label: "Access Control", enabled: canAccessControl },
   ].filter((item) => item.enabled !== false);
 
@@ -27,4 +28,3 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
-

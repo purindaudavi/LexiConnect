@@ -10,7 +10,7 @@ export async function getMyCases() {
 }
 
 export async function getSpecializations() {
-  const res = await api.get("/api/specializations");
+  const res = await api.get("/api/specializations/");
   return res.data;
 }
 

@@ -78,6 +78,7 @@ import AdminDashboard from "../pages/admin/AdminDashboard";
 import KYCApproval from "../pages/admin/KYCApproval";
 import AuditLog from "../pages/admin/AuditLog";
 import AccessControl from "../pages/admin/AccessControl";
+import AuthLogPage from "../features/admin/pages/AuthLogPage";
 
 const DashboardRedirect = () => {
   const role = (getRole() || localStorage.getItem("role") || "").toLowerCase();
@@ -280,6 +281,7 @@ const AppRoutes = () => {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/kyc-approval" element={<KYCApproval />} />
         <Route path="/admin/audit-log" element={<AuditLog />} />
+        <Route path="/admin/auth-log" element={<AuthLogPage />} />
         <Route path="/admin/access-control" element={<AccessControl />} />
 
         <Route path="/admin/disputes" element={<AdminDisputesListPage />} />
