@@ -46,6 +46,18 @@ export const getBookingById = async (id) => {
 };
 
 /**
+ * List bookings for a specific case id
+ * @param {number} caseId - Case ID
+ * @returns {Promise<Array>} Array of booking objects
+ */
+export const listBookingsByCaseId = async (caseId) => {
+  const { data } = await api.get("/api/bookings", {
+    params: { case_id: caseId },
+  });
+  return data;
+};
+
+/**
  * Cancel a booking
  * Only the client who owns the booking can cancel it
  * @param {number} id - Booking ID

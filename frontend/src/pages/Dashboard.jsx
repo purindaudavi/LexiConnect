@@ -4,6 +4,8 @@ import StatGrid from "../components/ui/StatGrid";
 import EmptyState from "../components/ui/EmptyState";
 import StatusPill from "../components/ui/StatusPill";
 import { listMyBookings } from "../services/bookings";
+import { fetchPublicCases } from "../features/publicFeed/services/publicFeedApi";
+import { getSpecializations } from "../features/cases/services/cases.service";
 
 const formatDateTime = (value) => {
   if (!value) return "—";
@@ -18,6 +20,17 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publicCases, setPublicCases] = useState([]);
+  const [publicCasesLoading, setPublicCasesLoading] = useState(true);
+  const [publicCasesError, setPublicCasesError] = useState("");
+  const [specializations, setSpecializations] = useState([]);
+  const [specializationsLoading, setSpecializationsLoading] = useState(true);
+  const [publicFilters, setPublicFilters] = useState({
+    q: "",
+    district: "",
+    specialization_id: "",
+    sort: "latest",
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -39,6 +52,69 @@ export default function Dashboard() {
 
     load();
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSpecializations = async () => {
+      try {
+        const data = await getSpecializations();
+        if (!mounted) return;
+        setSpecializations(Array.isArray(data) ? data : []);
+      } catch {
+        if (!mounted) return;
+        setSpecializations([
+          { id: 1, name: "Family Law" },
+          { id: 2, name: "Property & Conveyancing" },
+          { id: 3, name: "Corporate & Contracts" },
+          { id: 4, name: "Criminal Defense" },
+        ]);
+      } finally {
+        if (mounted) {
+          setSpecializationsLoading(false);
+        }
+      }
+    };
+    loadSpecializations();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    setPublicCasesLoading(true);
+    setPublicCasesError("");
+
+    const timeout = setTimeout(async () => {
+      try {
+        const params = {
+          q: publicFilters.q || undefined,
+          district: publicFilters.district || undefined,
+          specialization_id: publicFilters.specialization_id
+            ? Number(publicFilters.specialization_id)
+            : undefined,
+          sort: publicFilters.sort || "latest",
+          limit: 6,
+          offset: 0,
+        };
+        const data = await fetchPublicCases(params);
+        if (!mounted) return;
+        setPublicCases(Array.isArray(data) ? data : []);
+      } catch {
+        if (!mounted) return;
+        setPublicCasesError("Unable to load public cases right now.");
+      } finally {
+        if (mounted) {
+          setPublicCasesLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
+  }, [publicFilters]);
 
   const stats = useMemo(() => {
     const total = bookings.length;
@@ -136,6 +212,104 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
+      </section>
+
+      <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg shadow-slate-900/30">
+        <div>
+          <div className="text-lg font-semibold text-white">Public Legal Discussions</div>
+          <div className="text-sm text-slate-400">
+            Comment on real issues and see what others are discussing.
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-4 gap-3">
+          <div className="lg:col-span-2">
+            <input
+              value={publicFilters.q}
+              onChange={(e) => setPublicFilters((f) => ({ ...f, q: e.target.value }))}
+              placeholder="Search by keyword"
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <div>
+            <select
+              value={publicFilters.district}
+              onChange={(e) => setPublicFilters((f) => ({ ...f, district: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {["", "Colombo", "Kandy", "Galle", "Jaffna", "Gampaha"].map((d) => (
+                <option key={d || "all"} value={d}>
+                  {d || "All districts"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={publicFilters.specialization_id}
+              onChange={(e) =>
+                setPublicFilters((f) => ({ ...f, specialization_id: e.target.value }))
+              }
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">
+                {specializationsLoading ? "Loading..." : "All specializations"}
+              </option>
+              {!specializationsLoading &&
+                specializations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-3">
+          <div className="lg:col-span-1">
+            <select
+              value={publicFilters.sort}
+              onChange={(e) => setPublicFilters((f) => ({ ...f, sort: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="latest">Latest</option>
+              <option value="most_commented">Most Discussed</option>
+            </select>
+          </div>
+        </div>
+
+        {publicCasesError && <div className="text-sm text-red-300">{publicCasesError}</div>}
+
+        {publicCasesLoading ? (
+          <div className="text-slate-400">Loading public cases...</div>
+        ) : publicCases.length === 0 ? (
+          <div className="text-slate-400">No public cases found</div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {publicCases.map((c) => (
+              <div
+                key={c.id}
+                className="border border-slate-800 rounded-xl bg-slate-900/70 p-4 space-y-3"
+              >
+                <div className="text-lg font-semibold text-white">{c.title}</div>
+                <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+                  <span>{c.district || "â€”"}</span>
+                  <span>|</span>
+                  <span>{c.specialization_name || c.category || "â€”"}</span>
+                  <span>|</span>
+                  <span>{c.comment_count || 0} comments</span>
+                </div>
+                <div className="text-xs text-slate-500">{formatDateTime(c.created_at)}</div>
+                <Link
+                  to={`/public/cases/${c.id}`}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
+                >
+                  Open discussion
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-lg shadow-slate-900/30">

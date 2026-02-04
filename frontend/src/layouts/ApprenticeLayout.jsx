@@ -1,4 +1,5 @@
 import { Outlet, useNavigate } from "react-router-dom";
+import { logout as clearAuth } from "../services/auth";
 import TopNavbar from "../components/TopNavbar";
 
 export default function ApprenticeLayout() {
@@ -11,9 +12,7 @@ export default function ApprenticeLayout() {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
+    clearAuth();
     localStorage.removeItem("email");
     localStorage.removeItem("user");
     if (window.axios) {

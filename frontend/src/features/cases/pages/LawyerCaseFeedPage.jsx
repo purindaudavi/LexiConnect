@@ -283,6 +283,14 @@ export default function LawyerCaseFeedPage() {
                     Request Access
                   </button>
                 )}
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    to={`/lawyer/public/cases/${c.id}`}
+                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-sm font-semibold"
+                  >
+                    View discussion
+                  </Link>
+                </div>
               </div>
             ))}
           </div>

@@ -26,8 +26,12 @@ export const getBookingDocuments = async (bookingId) => {
 // Backwards-compatible alias (some pages import this name)
 export const listDocuments = (bookingId) => getBookingDocuments(bookingId);
 
-// Another safe alias in case some file uses this name
-export const listBookingDocuments = (bookingId) => getBookingDocuments(bookingId);
+// LIST case docs
+export const listCaseDocuments = async (caseId) => {
+  const id = Number(caseId);
+  const res = await api.get(`/api/documents/by-case/${id}`);
+  return res.data;
+};
 
 // UPLOAD booking doc
 export const uploadDocument = ({ bookingId, fileName, file }) => {
@@ -56,26 +60,8 @@ export const uploadDocument = ({ bookingId, fileName, file }) => {
   });
 };
 
-/* ------------------------------------------------------------------ */
-/* Case Documents                                                      */
-/* ------------------------------------------------------------------ */
-
-// LIST case docs
-export const listCaseDocuments = (caseId) => {
-  const id = Number(caseId);
-  if (!Number.isFinite(id) || id <= 0) {
-    throw new Error("Invalid caseId for listCaseDocuments()");
-  }
-  return api.get(`/api/documents/by-case/${id}`);
-};
-
-/**
- * UPLOAD case doc
- * NOTE: This assumes your backend supports uploading a document with "case_id"
- * on the same /api/documents endpoint (common pattern).
- * If your backend uses a different endpoint, tell me the backend route and I’ll adjust.
- */
-export const uploadCaseDocument = ({ caseId, fileName, file }) => {
+// UPLOAD case doc
+export const uploadCaseDocument = async ({ caseId, fileName, file }) => {
   const id = Number(caseId);
 
   if (!Number.isFinite(id) || id <= 0) {
@@ -88,23 +74,17 @@ export const uploadCaseDocument = ({ caseId, fileName, file }) => {
   const safeTitle = (fileName || file?.name || "Untitled").trim();
 
   const fd = new FormData();
-  fd.append("case_id", String(id));
   fd.append("file_name", safeTitle);
   fd.append("title", safeTitle);
   fd.append("file", file);
 
-  return api.post("/api/documents", fd, {
+  const res = await api.post(`/api/documents/by-case/${id}`, fd, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return res.data;
 };
 
-// Alias (just in case any page uses a different name)
-export const uploadDocumentForCase = uploadCaseDocument;
-
-/* ------------------------------------------------------------------ */
-/* Delete Document                                                     */
-/* ------------------------------------------------------------------ */
-
+// DELETE
 export const deleteDocument = (docId) => {
   const id = Number(docId);
   if (!Number.isFinite(id) || id <= 0) {

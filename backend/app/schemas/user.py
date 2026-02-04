@@ -17,8 +17,14 @@ class UserCreate(UserBase):
     password: str
 
 
-class UserOut(UserBase):
+class UserOut(BaseModel):
     id: int
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    role: UserRole = UserRole.client
+    nic: Optional[str] = None
+    must_change_password: bool
     created_at: datetime
 
     class Config:

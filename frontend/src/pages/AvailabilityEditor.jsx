@@ -125,6 +125,8 @@ const AvailabilityEditor = () => {
     if (err?.response?.status === 401) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('token');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('role');
       sessionStorage.removeItem('access_token');
       sessionStorage.removeItem('token');
       onAuthFail?.('Session expired');

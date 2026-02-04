@@ -5,6 +5,7 @@ import {
   fetchApprenticeChoices,
   fetchCaseChoices,
 } from "../api/apprenticeshipApi";
+import apiClient from "../../../lib/apiClient";
 
 export default function LawyerApprenticesPage() {
   const location = useLocation();
@@ -33,6 +34,14 @@ export default function LawyerApprenticesPage() {
   const [assignLoading, setAssignLoading] = useState(false);
   const [ok, setOk] = useState("");
   const [err, setErr] = useState("");
+
+  // Create apprentice
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newNic, setNewNic] = useState("");
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createOk, setCreateOk] = useState("");
+  const [createErr, setCreateErr] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -90,7 +99,42 @@ export default function LawyerApprenticesPage() {
     }
   };
 
-  const clearForm = () => {
+  const handleCreateApprentice = async (event) => {
+    event.preventDefault();
+    if (createLoading) return;
+
+    setCreateOk("");
+    setCreateErr("");
+    setCreateLoading(true);
+
+    try {
+      const { data } = await apiClient.post("/lawyers/apprentices", {
+        name: newName,
+        email: newEmail,
+        nic: newNic,
+      });
+
+      setCreateOk(
+        data?.message || "Apprentice created and onboarding email sent."
+      );
+      setNewName("");
+      setNewEmail("");
+      setNewNic("");
+
+      const updated = await fetchApprenticeChoices();
+      setApprentices(Array.isArray(updated) ? updated : []);
+    } catch (e) {
+      setCreateErr(
+        e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          "Failed to create apprentice."
+      );
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const handleClear = () => {
     setApprenticeId("");
     setCaseId("");
     setErr("");
@@ -143,84 +187,149 @@ export default function LawyerApprenticesPage() {
 
       {/* ASSIGN TAB */}
       {tab === "assign" && (
-        <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
-          <h2 className="text-xl font-semibold">Assign apprentice to case</h2>
-          <p className="text-slate-300 text-sm mt-1">
-            Select an apprentice and a case to assign.
-          </p>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
+            <h2 className="text-xl font-semibold">Add apprentice</h2>
+            <p className="text-slate-300 text-sm mt-1">
+              Create a new apprentice and send onboarding instructions.
+            </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <label className="text-sm text-slate-200">
-              Apprentice
-              <select
-                className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
-                value={apprenticeId}
-                onChange={(e) => setApprenticeId(e.target.value)}
-                disabled={choicesLoading}
-              >
-                <option value="">
-                  {choicesLoading
-                    ? "Loading apprentices..."
-                    : "Select an apprentice"}
-                </option>
-                {apprentices.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {apprenticeLabel(a)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <form onSubmit={handleCreateApprentice} className="mt-4 space-y-4">
+              <label className="text-sm text-slate-200 block">
+                Name
+                <input
+                  className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Apprentice name"
+                  required
+                />
+              </label>
 
-            <label className="text-sm text-slate-200">
-              Case
-              <select
-                className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
-                value={caseId}
-                onChange={(e) => setCaseId(e.target.value)}
-                disabled={choicesLoading}
+              <label className="text-sm text-slate-200 block">
+                Email
+                <input
+                  type="email"
+                  className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="apprentice@example.com"
+                  required
+                />
+              </label>
+
+              <label className="text-sm text-slate-200 block">
+                NIC
+                <input
+                  className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
+                  value={newNic}
+                  onChange={(e) => setNewNic(e.target.value)}
+                  placeholder="NIC"
+                  required
+                />
+              </label>
+
+              {createOk && (
+                <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  {createOk}
+                </div>
+              )}
+
+              {createErr && (
+                <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {createErr}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={createLoading}
+                className="w-full rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
               >
-                <option value="">
-                  {choicesLoading ? "Loading cases..." : "Select a case"}
-                </option>
-                {cases.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {caseLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                {createLoading ? "Creating..." : "Add Apprentice"}
+              </button>
+            </form>
           </div>
 
-          {ok && (
-            <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              {ok}
+          <div className="bg-slate-900/40 border border-slate-700/60 rounded-2xl p-6 text-white">
+            <h2 className="text-xl font-semibold">Assign apprentice to case</h2>
+            <p className="text-slate-300 text-sm mt-1">
+              Select an apprentice and a case to assign.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <label className="text-sm text-slate-200">
+                Apprentice
+                <select
+                  className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
+                  value={apprenticeId}
+                  onChange={(e) => setApprenticeId(e.target.value)}
+                  disabled={choicesLoading}
+                >
+                  <option value="">
+                    {choicesLoading
+                      ? "Loading apprentices..."
+                      : "Select an apprentice"}
+                  </option>
+                  {apprentices.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {apprenticeLabel(a)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-200">
+                Case
+                <select
+                  className="mt-2 w-full rounded-lg bg-slate-950/30 border border-slate-700/60 px-4 py-3 text-white outline-none focus:border-amber-400/70 focus:ring-2 focus:ring-amber-400/30"
+                  value={caseId}
+                  onChange={(e) => setCaseId(e.target.value)}
+                  disabled={choicesLoading}
+                >
+                  <option value="">
+                    {choicesLoading ? "Loading cases..." : "Select a case"}
+                  </option>
+                  {cases.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {caseLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          )}
 
-          {err && (
-            <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {err}
+            {ok && (
+              <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                {ok}
+              </div>
+            )}
+
+            {err && (
+              <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {err}
+              </div>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={handleAssign}
+                disabled={
+                  assignLoading || !apprenticeId || !caseId || choicesLoading
+                }
+                className="rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
+              >
+                {assignLoading ? "Assigning..." : "Assign Apprentice"}
+              </button>
+
+              <button
+                onClick={handleClear}
+                className="rounded-lg bg-slate-800 border border-slate-700 px-6 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
+                disabled={assignLoading}
+              >
+                Clear
+              </button>
             </div>
-          )}
-
-          <div className="mt-5 flex gap-3">
-            <button
-              onClick={handleAssign}
-              disabled={
-                assignLoading || !apprenticeId || !caseId || choicesLoading
-              }
-              className="rounded-lg bg-amber-500 px-6 py-3 font-semibold text-white hover:bg-amber-400 disabled:opacity-60"
-            >
-              {assignLoading ? "Assigning..." : "Assign Apprentice"}
-            </button>
-
-            <button
-              onClick={clearForm}
-              className="rounded-lg bg-slate-800 border border-slate-700 px-6 py-3 font-semibold text-white hover:bg-slate-700 disabled:opacity-60"
-              disabled={assignLoading}
-            >
-              Clear
-            </button>
           </div>
         </div>
       )}
