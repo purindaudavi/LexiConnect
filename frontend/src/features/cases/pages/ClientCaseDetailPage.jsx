@@ -426,7 +426,6 @@ export default function ClientCaseDetailPage() {
                     </div>
                     {data.status || "-"}
                   </div>
-                )}
               </div>
 
                   <div className="text-sm text-slate-300">
@@ -479,8 +478,6 @@ export default function ClientCaseDetailPage() {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
           )}
 
           {/* Documents */}
@@ -692,6 +689,9 @@ export default function ClientCaseDetailPage() {
           )}
         </>
       )}
-    </PageShell>
+     
+    {/* </PageShell> */}
+    </div>
+
   );
 }
